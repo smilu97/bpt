@@ -1,3 +1,5 @@
+use pokemon;
+
 -- 1
 select name from Trainer as T where T.hometown = 'Blue City';
 
@@ -32,16 +34,16 @@ select type, count(*) from Pokemon group by type;
 select nickname from CatchedPokemon order by level desc limit 3;
 
 -- 12
-mysql> select avg(level) from CatchedPokemon;
+select avg(level) from CatchedPokemon;
 
 -- 13
-mysql> select max(level) - min(level) from CatchedPokemon;
+select max(level) - min(level) from CatchedPokemon;
 
 -- 14
-mysql> select count(*) from Pokemon where name regexp '^[bcde]';
+select count(*) from Pokemon where name regexp '^[bcde]';
 
 -- 15
-mysql> select count(*) from Pokemon where type not in ('Fire', 'Grass', 'Water', 'Electric');
+select count(*) from Pokemon where type not in ('Fire', 'Grass', 'Water', 'Electric');
 
 -- 16
 select T.name, P.name, C.nickname
@@ -117,7 +119,7 @@ select T.name, P.type, count(*)
 from Trainer as T
 join CatchedPokemon as C on C.owner_id = T.id
 join Pokemon as P on P.id = C.pid
-group by T.id, P.type
+group by T.id, P.type;
 
 -- 26
 select T.name, min(P.name), count(*)
