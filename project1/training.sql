@@ -62,7 +62,8 @@ and C.pid = P.id;
 select T.name, T.hometown from Trainer as T
 order by (
 	select avg(level) from CatchedPokemon as C where C.owner_id = T.id
-) desc;
+) desc
+limit 3;
 
 -- 19
 select T.name, count(*) from Trainer as T, CatchedPokemon as C
@@ -142,8 +143,7 @@ having count(distinct P.type) > 1;
 select T.name, sum(C.level)
 from Gym as G
 join Trainer as T on T.id = G.leader_id
-join CatchedPokemon as C on C.owner_id = T.id
-where C.level >= 50
+left join CatchedPokemon as C on C.owner_id = T.id and C.level >= 50
 group by T.id;
 
 -- 29
@@ -170,4 +170,10 @@ where not exists(
 ) and exists(
 	select * from Evolution as E
 	where E.after_id = P.id
+);
+
+select P.name from Evolution as E
+join Pokemon as P on P.id = E.after_id
+where not exists(
+	select * from Evolution as E2 where E2.before_id = E.after_id
 );
