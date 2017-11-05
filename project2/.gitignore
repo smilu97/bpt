@@ -1,0 +1,10 @@
+.DS_Store
+*.o
+main
+.vscode
+*.db
+test/tests
+*.dSYM
+log.txt
+desc
+printall
