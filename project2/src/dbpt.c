@@ -431,8 +431,13 @@ int delete(llu key)
     register_dirty_page(m_leaf, make_dirty(0, PAGE_HEADER_SIZE + leaf->header.numOfKeys * sizeof(Record)));
 
     // if(leaf->header.numOfKeys < LEAF_MERGE_TOLERANCE) {
-    //     merge_leaf(m_leaf);
+    //      return merge_leaf(m_leaf) - 1;
     // }
     
     return 0;
+}
+
+int merge_leaf(MemoryPage * m_leaf)
+{
+    return true;
 }

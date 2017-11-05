@@ -38,5 +38,6 @@ int insert_into_new_root(MemoryPage * left, llu key, MemoryPage * right);
 void print_all();
 
 int delete(llu key);
+int merge_leaf(MemoryPage * m_leaf);
 
 #endif

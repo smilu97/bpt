@@ -50,7 +50,7 @@ typedef char BYTE;
 #define LEAF_KEYVALUE_NUM ((PAGE_SIZE - PAGE_HEADER_SIZE) / sizeof(Record))
 #define INTERNAL_KEYVALUE_NUM ((PAGE_SIZE - PAGE_HEADER_SIZE) / (KEY_SIZE + sizeof(offsetType)))
 
-#define MAX_MEMPAGE (10000000)
+#define MAX_MEMPAGE (100000)
 #define MEMPAGE_MOD (MAX_MEMPAGE)
 
 #define DIRTY_QUEUE_SIZE 10000
