@@ -299,7 +299,8 @@ int set_parent(llu page_num, llu parent_num)
     MemoryPage * m_page = get_page(page_num);
     InternalPage * page = (InternalPage*)(m_page->p_page);
     page->header.parentOffset = parent_num * PAGE_SIZE;
-    commit_page((Page*)page, page_num, PAGE_HEADER_SIZE, 0);
+
+    register_dirty_page(m_page, make_dirty(8, 16));
 
     return 1;
 }

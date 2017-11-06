@@ -55,7 +55,7 @@ typedef char BYTE;
 
 #define DIRTY_QUEUE_SIZE 10000
 
-#define FILE_OPEN_SETTING (O_RDWR | O_SYNC)
+#define FILE_OPEN_SETTING (O_RDWR)
 
 #define HEADER_PAGE_COMMIT_SIZE 24
 

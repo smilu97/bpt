@@ -10,7 +10,7 @@ int found_idx = 0;
 int fail[1000];
 int fail_idx = 0;
 
-#define INSERT_NUM (100000)
+#define INSERT_NUM (1000000)
 
 int test_insert_sequence()
 {
