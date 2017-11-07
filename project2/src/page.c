@@ -105,7 +105,8 @@ int close_file()
     // If file wasn't opened, FAIL
     if(fd == 0) return false;
 
-    commit_page((Page*)&headerPage, 0, PAGE_SIZE, 0);
+    commit_dirty_pages();
+    commit_page((Page*)&headerPage, 0, HEADER_PAGE_COMMIT_SIZE, 0);
     close(fd);
 
     return true;

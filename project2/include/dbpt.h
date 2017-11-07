@@ -24,6 +24,7 @@ int height(Page * root);
 MemoryPage * find_leaf(llu key);
 MemoryPage * find_first_leaf();
 MemoryPage * find_left(MemoryPage * m_leaf);
+char * find_from_leaf(MemoryPage * m_leaf, llu key);
 char * find(llu key);
 
 int insert(llu key, const char * value);

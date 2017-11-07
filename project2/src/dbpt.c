@@ -124,15 +124,13 @@ MemoryPage * find_first_leaf()
     return m_cur;
 }
 
-char * find(llu key)
+int find_idx_from_leaf(MemoryPage * m_leaf, llu key)
 {
-    llu idx = 0;
-    MemoryPage * m_c = find_leaf(key);
-    LeafPage * c = (LeafPage*)(m_c->p_page);
+    LeafPage * c = (LeafPage*)(m_leaf->p_page);
     llu len = c->header.numOfKeys;
-
-    if(len == 0) return NULL;
- 
+    
+    if(len == 0) return -1;
+    
     llu left = 0, right = len - 1, mid, mid_key;
     while(left + 1 < right) {
         mid = ((left + right) >> 1);
@@ -142,13 +140,21 @@ char * find(llu key)
         } else if(key < mid_key) {
             right = mid;
         } else {  // if(key ==  mid_key)
-            return c->keyValue[mid].value;
+            return mid;
         }
     }
 
-    if(c->keyValue[left] .key == key) return c->keyValue[left].value;
-    if(c->keyValue[right].key == key) return c->keyValue[right].value;
-    return NULL;
+    if(c->keyValue[left] .key == key) return left;
+    if(c->keyValue[right].key == key) return right;
+    return -1;
+}
+
+char * find(llu key)
+{
+    MemoryPage * m_leaf = find_leaf(key);
+    int idx = find_idx_from_leaf(m_leaf, key);
+    if(idx == -1) return NULL;
+    return ((LeafPage*)(m_leaf->p_page))->keyValue[idx].value;
 }
 
 /*
@@ -156,9 +162,6 @@ char * find(llu key)
  */
 int insert(llu key, const char * value)
 {
-    // If already exists, skip
-    if(find(key) != NULL) return false;
-
     // Find leaf page to insert key
     MemoryPage * m_leaf = find_leaf(key);
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
@@ -179,6 +182,8 @@ int insert(llu key, const char * value)
 
 int insert_into_leaf(MemoryPage * m_leaf, llu key, const char * value)
 {
+    if(find_idx_from_leaf(m_leaf, key) != -1) return false;
+
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);  // Get leaf page
 
     llu len = (leaf->header.numOfKeys)++;
@@ -429,6 +434,9 @@ int delete(llu key)
 
     commit_page((Page*)&headerPage, 0, HEADER_PAGE_COMMIT_SIZE, 0);
     register_dirty_page(m_leaf, make_dirty(0, PAGE_HEADER_SIZE + leaf->header.numOfKeys * sizeof(Record)));
+
+    if(false == commit_dirty_pages())
+        return -1;
 
     // if(leaf->header.numOfKeys < LEAF_MERGE_TOLERANCE) {
     //      return merge_leaf(m_leaf) - 1;
