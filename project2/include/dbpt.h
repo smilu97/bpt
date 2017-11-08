@@ -20,14 +20,14 @@
 void print_tree();
 
 MemoryPage * get_root();
-int height(Page * root);
-MemoryPage * find_leaf(llu key);
+int height(MemoryPage * root);
+MemoryPage * find_leaf(int table_id, llu key);
 MemoryPage * find_first_leaf();
 MemoryPage * find_left(MemoryPage * m_leaf);
 char * find_from_leaf(MemoryPage * m_leaf, llu key);
-char * find(llu key);
+char * find(int table_id, llu key);
 
-int insert(llu key, const char * value);
+int insert(int table_id, llu key, const char * value);
 int insert_into_leaf(MemoryPage * m_leaf, llu key, const char * value);
 int insert_into_leaf_after_splitting(MemoryPage * m_leaf, llu key, const char * value);
 int insert_into_parent(MemoryPage * m_left, llu new_key, MemoryPage * m_new_leaf);
@@ -38,7 +38,7 @@ int insert_into_new_root(MemoryPage * left, llu key, MemoryPage * right);
 
 void print_all();
 
-int delete(llu key);
+int delete(int table_id, llu key);
 int merge_leaf(MemoryPage * m_leaf);
 
 #endif

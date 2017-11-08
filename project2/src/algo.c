@@ -24,3 +24,8 @@ long long min_lld(long long a, long long b)
     if(a < b) return a;
     return b;
 }
+
+void myerror(const char * str)
+{
+    fprintf(stderr, "%s\n", str);
+}

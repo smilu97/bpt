@@ -10,12 +10,14 @@ int found_idx = 0;
 int fail[1000];
 int fail_idx = 0;
 
-#define INSERT_NUM (10000000)
+#define INSERT_NUM (100000)
 
 int test_insert_sequence()
 {
     unlink("db/test_insert_seq.db");
-    open_db("db/test_insert_seq.db");
+    
+    init_db(10000);
+    int fd = open_table("db/test_insert_seq.db");
 
     char buf[200];
     
@@ -24,7 +26,7 @@ int test_insert_sequence()
     int start = time(0);
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", i);
-        insert(i, buf);
+        insert(fd, i, buf);
     }
     int end = time(0); 
     printf("insert time: %d\n", end - start);
@@ -32,7 +34,7 @@ int test_insert_sequence()
     int success = 1;
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", i);
-        char * record = find(i);
+        char * record = find(fd, i);
         if(record == NULL || strcmp(record, buf) != 0) {
             success = 0;
             break;
@@ -44,14 +46,17 @@ int test_insert_sequence()
         puts("sequence validation fail");
     }
 
-    delete_cache();
+    close_table(fd);
+    shutdown_db();
     return true;
 }
 
 int test_insert_random()
 {
     unlink("db/test_insert_random.db");
-    open_db("db/test_insert_random.db");
+
+    init_db(10000);
+    int fd = open_table("db/test_insert_random.db");
 
     char buf[200];
     int indices[INSERT_NUM];
@@ -63,7 +68,7 @@ int test_insert_random()
     for(int i=0; i<INSERT_NUM; ++i) {
         indices[i] = (int)(rand() % 0x7FFFFF);
         sprintf(buf, "I'm a record %d", indices[i]);
-        insert(indices[i], buf);
+        insert(fd, indices[i], buf);
     }
     int end = time(0);
     printf("insert time: %d\n", end - start);
@@ -71,7 +76,7 @@ int test_insert_random()
     int success = 1;
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", indices[i]);
-        char * record = find(indices[i]);
+        char * record = find(fd, indices[i]);
         
         if(record == NULL || strcmp(record, buf) != 0) {
             success = 0;
@@ -84,6 +89,7 @@ int test_insert_random()
         puts("random validation failed");
     }
     
-    delete_cache();
+    close_table(fd);
+    shutdown_db();
     return true;
 }

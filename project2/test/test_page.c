@@ -11,21 +11,22 @@ int test_page()
 {
     MemoryPage *m_a, *m_b;
     Page *a, *b;
-    if(open_db("db/test_page.db")) {
-        puts("open_db failed");
-        return false;
-    }
+
+    init_db(1000);
+
+    unlink("db/test_page.db");
+    int fd = open_table("db/test_page.db");
 
     char buf[200];
 
     for(int i=1; i<PAGE_NUM; ++i) {
-        Page * page = get_page(i)->p_page;
+        Page * page = get_page(fd, i)->p_page;
         sprintf(page->bytes, "Hello I'm record %d", i);
-        commit_page(page, i, 200, 0);
+        commit_page(fd, page, i, 200, 0);
     }
 
     for(int i=1; i<PAGE_NUM; ++i) {
-        Page * page = get_page(i)->p_page;
+        Page * page = get_page(fd, i)->p_page;
         sprintf(buf, "Hello I'm record %d", i);
         if(strcmp(buf, page->bytes) != 0) {
             printf("buf  : %s\n", buf);
@@ -48,7 +49,8 @@ int test_page()
     
     puts("test page success");
 
-    delete_cache();
+    close_table(fd);
+    shutdown_db();
 
     // look at test.db
     return true;

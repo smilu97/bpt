@@ -9,7 +9,8 @@ int main( int argc, char ** argv ) {
         return 0;
     }
 
-    open_db(argv[1]);
+    init_db(100000);
+    int fd = open_table(argv[1]);
 
     char instruction;
     char value_buf[1000];
@@ -20,19 +21,19 @@ int main( int argc, char ** argv ) {
         switch (instruction) {
         case 'd':
             scanf("%d", &input);
-            delete(input);
+            delete(fd, input);
             print_tree();
             break;
         case 'i':
             scanf("%d", &input);
             scanf("%s", value_buf);
-            insert(input, value_buf);
+            insert(fd, input, value_buf);
             // print_tree();
             break;
         case 'f':
         case 'p':
             scanf("%d", &input);
-            char * res = find(input);
+            char * res = find(fd, input);
             if(res) {
                 printf("Key: %d, Value: %s\n", input, res);
             } else {
@@ -53,6 +54,8 @@ int main( int argc, char ** argv ) {
             break;
         case 'q':
             while (getchar() != (int)'\n');
+            close_table(fd);
+            shutdown_db();
             return EXIT_SUCCESS;
             break;
         case 't':
@@ -74,6 +77,8 @@ int main( int argc, char ** argv ) {
         // printf("> ");
     }
     printf("\n");
+    close_table(fd);
+    shutdown_db();
 
     return EXIT_SUCCESS;
 }

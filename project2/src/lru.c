@@ -8,6 +8,8 @@ void LRUClean() {
         free(cur);
         cur = next;
     }
+    lru_head = 0;
+    lru_tail = 0;
 }
 
 void LRUInit() {
@@ -56,6 +58,7 @@ void * LRUPop()
 void LRUAdvance(LRUNode * node)
 {
     if(node == lru_tail) return;
+    if(node == lru_head) lru_head = lru_head->next;
 
     if(node->prev) node->prev->next = node->next;
     if(node->next) node->next->prev = node->prev;

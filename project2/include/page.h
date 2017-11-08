@@ -50,8 +50,7 @@ typedef char BYTE;
 #define LEAF_KEYVALUE_NUM ((PAGE_SIZE - PAGE_HEADER_SIZE) / sizeof(Record))
 #define INTERNAL_KEYVALUE_NUM ((PAGE_SIZE - PAGE_HEADER_SIZE) / (KEY_SIZE + sizeof(offsetType)))
 
-#define MAX_MEMPAGE (1000000)
-#define MEMPAGE_MOD (MAX_MEMPAGE)
+#define MEMPAGE_MOD (1000000)
 
 #define DIRTY_QUEUE_SIZE 10000
 
@@ -153,13 +152,15 @@ typedef struct InternalPage {
 typedef struct Dirty {
     int left;
     int right;
+    struct Dirty * next;
 } Dirty;
 
 /*
  *  
  */
 typedef struct MemoryPage {
-    Dirty dirty;
+    Dirty * dirty;
+    int table_id;
     llu cache_idx;
     llu page_num;
     LRUNode * p_lru;
@@ -175,37 +176,39 @@ void describe_header(HeaderPage * head);
 void describe_leaf(MemoryPage * m_leaf);
 void describe_internal(MemoryPage * m_internal);
 
-void init_buf();
+int init_db(int buf_num);
+int open_table(const char * pathname);
+int close_table(int table_id);
+int shutdown_db(void);
+
+MemoryPage * get_header_page(int table_id);
+int init_buf();
 void delete_cache();
-MemoryPage * get_page(llu page_num);
-MemoryPage * new_page();
-int free_page(llu idX);
-int commit_page(Page * p_page, llu page_num, llu size, llu offset);
-int load_page(Page * p_page, llu page_num, llu size);
+MemoryPage * get_page(int table_id, llu page_num);
+MemoryPage * new_page(int table_id);
+int free_page(int table_id, llu idx);
+int commit_page(int table_id, Page * p_page, llu page_num, llu size, llu offset);
+int load_page(int table_id, Page * p_page, llu page_num, llu size);
 int close_file();
-int open_db(const char * filepath);
-int set_parent(llu page_num, llu parent_num);
-MemoryPage * find_hash_friend(MemoryPage * mem, llu page_num);
+int set_parent(int table_id, llu page_num, llu parent_num);
+MemoryPage * find_hash_friend(MemoryPage * mem, int table_id, llu page_num);
 
 void make_free_mempage(llu idx);
 MemoryPage * new_mempage();
 
-Dirty make_dirty(int left, int right);
-void update_dirty(Dirty * dest, Dirty src);
-int register_dirty_page(MemoryPage * m_page, Dirty dirty);
-int commit_dirty_pages();
+Dirty * make_dirty(int left, int right);
+int register_dirty_page(MemoryPage * m_page, Dirty * dirty);
 
 /*******************************************************************
  * Global variables
  *******************************************************************/
 
-int fd;
-HeaderPage headerPage;
 MemoryPage * page_buf[MEMPAGE_MOD];
 MemoryPage * mempages;
 MemoryPage * free_mempage;
 int mempage_num;
 int last_mempage_idx;
+int MAX_MEMPAGE;
 
 int dirty_queue[DIRTY_QUEUE_SIZE];
 int dirty_queue_size;

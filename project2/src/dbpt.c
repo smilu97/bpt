@@ -5,17 +5,20 @@
 
 #include "dbpt.h"
 
-void print_tree()
+void print_tree(int table_id)
 {
-    int * queue = (int*)malloc(sizeof(int)*(headerPage.numOfPages));
+    MemoryPage * m_head = get_header_page(table_id);
+    HeaderPage * head = (HeaderPage*)m_head->p_page;
+
+    int * queue = (int*)malloc(sizeof(int)*(head->numOfPages));
     int queue_front = 0, queue_back = 1;
-    queue[0] = headerPage.rootPageOffset / PAGE_SIZE;
+    queue[0] = head->rootPageOffset / PAGE_SIZE;
     int parent_offset = 0;
     
     while(queue_front != queue_back) {
         int u = queue[queue_front++];
 
-        MemoryPage * m_cur = get_page(u);
+        MemoryPage * m_cur = get_page(table_id, u);
         InternalPage * cur = (InternalPage*)(m_cur->p_page);
         
         if(cur->header.parentOffset != parent_offset) {
@@ -47,25 +50,28 @@ void print_tree()
     free(queue);
 }
 
-MemoryPage * get_root()
+MemoryPage * get_root(int table_id)
 {
-    return get_page(headerPage.rootPageOffset / PAGE_SIZE);
+    HeaderPage * head = (HeaderPage*)(get_header_page(table_id)->p_page);
+    return get_page(table_id, head->rootPageOffset / PAGE_SIZE);
 }
 
-int height(Page * root)
+int height(MemoryPage * root)
 {
+    int table_id = root->table_id;
+
     int h = 0;
-    InternalPage * c = (InternalPage*)root;
+    InternalPage * c = (InternalPage*)(root->p_page);
     while(false == c->header.isLeaf) {
-        c = (InternalPage*)((get_page((c->header.oneMoreOffset) / PAGE_SIZE))->p_page);
+        c = (InternalPage*)((get_page(table_id, (c->header.oneMoreOffset) / PAGE_SIZE))->p_page);
         ++h;
     }
     return h;
 }
 
-MemoryPage * find_leaf(llu key)
+MemoryPage * find_leaf(int table_id, llu key)
 {
-    MemoryPage * m_root = get_root();
+    MemoryPage * m_root = get_root(table_id);
     InternalPage * root = (InternalPage*)(m_root->p_page);
     llu idx = 0, len;
     while(false == root->header.isLeaf) {
@@ -84,13 +90,13 @@ MemoryPage * find_leaf(llu key)
             }
         }
         if(root->keyValue[left].key > key) {
-            m_root = get_page(root->header.oneMoreOffset / PAGE_SIZE);
+            m_root = get_page(table_id, root->header.oneMoreOffset / PAGE_SIZE);
             root = (InternalPage*)(m_root->p_page);
         } else if(root->keyValue[right].key <= key) {
-            m_root = get_page(root->keyValue[right].offset / PAGE_SIZE);
+            m_root = get_page(table_id, root->keyValue[right].offset / PAGE_SIZE);
             root = (InternalPage*)(m_root->p_page);
         } else {
-            m_root = get_page(root->keyValue[left].offset / PAGE_SIZE);
+            m_root = get_page(table_id, root->keyValue[left].offset / PAGE_SIZE);
             root = (InternalPage*)(m_root->p_page);
         }
     }
@@ -99,25 +105,29 @@ MemoryPage * find_leaf(llu key)
 
 MemoryPage * find_left_leaf(MemoryPage * m_leaf)
 {
+    int table_id = m_leaf->table_id;
+
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
 
     if(leaf->header.parentOffset == 0) return NULL;
 
-    MemoryPage * m_parent = get_page(leaf->header.parentOffset / PAGE_SIZE);
+    MemoryPage * m_parent = get_page(table_id, leaf->header.parentOffset / PAGE_SIZE);
     InternalPage * parent = (InternalPage*)(m_parent->p_page);
 
     int leaf_idx = get_left_idx(parent, PAGE_SIZE * m_leaf->page_num);
     if(leaf_idx == 0) return NULL;
 
-    return get_page(parent->keyValue[leaf_idx - 1].offset / PAGE_SIZE);
+    return get_page(table_id, parent->keyValue[leaf_idx - 1].offset / PAGE_SIZE);
 }
 
-MemoryPage * find_first_leaf()
+MemoryPage * find_first_leaf(int table_id)
 {
-    MemoryPage * m_cur = get_page(headerPage.rootPageOffset / PAGE_SIZE);
+    MemoryPage * m_head = get_header_page(table_id);
+    HeaderPage * head = (HeaderPage*)(m_head->p_page);
+    MemoryPage * m_cur = get_page(table_id, head->rootPageOffset / PAGE_SIZE);
     InternalPage * cur = (InternalPage*)(m_cur->p_page);
     while(false == cur->header.isLeaf) {
-        m_cur = get_page(cur->header.oneMoreOffset / PAGE_SIZE);
+        m_cur = get_page(table_id, cur->header.oneMoreOffset / PAGE_SIZE);
         cur = (InternalPage*)(m_cur->p_page);
     }
 
@@ -149,9 +159,9 @@ int find_idx_from_leaf(MemoryPage * m_leaf, llu key)
     return -1;
 }
 
-char * find(llu key)
+char * find(int table_id, llu key)
 {
-    MemoryPage * m_leaf = find_leaf(key);
+    MemoryPage * m_leaf = find_leaf(table_id, key);
     int idx = find_idx_from_leaf(m_leaf, key);
     if(idx == -1) return NULL;
     return ((LeafPage*)(m_leaf->p_page))->keyValue[idx].value;
@@ -160,10 +170,10 @@ char * find(llu key)
 /*
  * Insert record into database
  */
-int insert(llu key, const char * value)
+int insert(int table_id, llu key, const char * value)
 {
     // Find leaf page to insert key
-    MemoryPage * m_leaf = find_leaf(key);
+    MemoryPage * m_leaf = find_leaf(table_id, key);
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
 
     int ret;
@@ -174,8 +184,8 @@ int insert(llu key, const char * value)
         ret = insert_into_leaf_after_splitting(m_leaf, key, value);
     }
 
-    if(false == commit_dirty_pages())
-        return -1;
+    // if(false == commit_dirty_pages())
+    //     return -1;
 
     return ret - 1;
 }
@@ -214,8 +224,13 @@ int insert_into_leaf(MemoryPage * m_leaf, llu key, const char * value)
 
 int insert_into_new_root(MemoryPage * m_left, llu new_key, MemoryPage * m_right)
 {
+    int table_id = m_left->table_id;
+
+    MemoryPage * m_head = get_header_page(table_id);
+    HeaderPage * head = (HeaderPage*)(m_head->p_page);
+
     // Make new page
-    MemoryPage * m_new_root = new_page();
+    MemoryPage * m_new_root = new_page(table_id);
     InternalPage * new_root = (InternalPage*)(m_new_root->p_page);
 
     // Make the new page header
@@ -227,13 +242,13 @@ int insert_into_new_root(MemoryPage * m_left, llu new_key, MemoryPage * m_right)
     new_root->keyValue[0].key    = new_key;
     new_root->keyValue[0].offset = PAGE_SIZE * m_right->page_num;
 
-    headerPage.rootPageOffset = PAGE_SIZE * m_new_root->page_num;
+    head->rootPageOffset = PAGE_SIZE * m_new_root->page_num;
 
     InternalPage * left  = (InternalPage*)(m_left-> p_page);
     InternalPage * right = (InternalPage*)(m_right->p_page);
 
-    left->header.parentOffset  = headerPage.rootPageOffset;
-    right->header.parentOffset = headerPage.rootPageOffset;
+    left->header.parentOffset  = head->rootPageOffset;
+    right->header.parentOffset = head->rootPageOffset;
 
     // Commit modifications
     register_dirty_page(m_new_root, make_dirty(0, PAGE_HEADER_SIZE + 20));
@@ -249,6 +264,8 @@ int insert_into_new_root(MemoryPage * m_left, llu new_key, MemoryPage * m_right)
  */
 int insert_into_leaf_after_splitting(MemoryPage * m_leaf, llu key, const char * value)
 {
+    int table_id = m_leaf->table_id;
+
     // Insert value into the node
     if(false == insert_into_leaf(m_leaf, key, value))
         return false;
@@ -258,7 +275,7 @@ int insert_into_leaf_after_splitting(MemoryPage * m_leaf, llu key, const char * 
     llu split = (len >> 1);
     int value_len;
 
-    MemoryPage * m_new_leaf = new_page();
+    MemoryPage * m_new_leaf = new_page(table_id);
     LeafPage * new_leaf = (LeafPage*)(m_new_leaf->p_page);
 
     new_leaf->header.isLeaf = true;
@@ -285,6 +302,8 @@ int insert_into_leaf_after_splitting(MemoryPage * m_leaf, llu key, const char * 
  */
 int insert_into_parent(MemoryPage * m_left, llu new_key, MemoryPage * m_new_leaf)
 {
+    int table_id = m_left->table_id;
+
     InternalPage * left = (InternalPage*)(m_left->p_page);  // Get left page
     
     if(left->header.parentOffset == 0) {  // If left page was already root, make new root
@@ -292,7 +311,7 @@ int insert_into_parent(MemoryPage * m_left, llu new_key, MemoryPage * m_new_leaf
     }
 
     // Get parent
-    MemoryPage * m_parent = get_page(left->header.parentOffset / PAGE_SIZE);
+    MemoryPage * m_parent = get_page(table_id, left->header.parentOffset / PAGE_SIZE);
     InternalPage * parent = (InternalPage*)(m_parent->p_page);
     
     // Get offset of left and right page
@@ -345,6 +364,7 @@ int insert_into_internal(MemoryPage * m_internal, llu left_idx, llu new_key, Mem
 
 int insert_into_internal_after_splitting(MemoryPage * m_internal, llu left_idx, llu new_key, MemoryPage * m_right)
 {
+    int table_id = m_internal->table_id;
     if(false == insert_into_internal(m_internal, left_idx, new_key, m_right))
         return false;
 
@@ -352,7 +372,7 @@ int insert_into_internal_after_splitting(MemoryPage * m_internal, llu left_idx, 
     llu len = internal->header.numOfKeys;
     llu split = (len >> 1);
 
-    MemoryPage * m_new_internal = new_page();
+    MemoryPage * m_new_internal = new_page(table_id);
     InternalPage * new_internal = (InternalPage*)(m_new_internal->p_page);
 
     new_internal->header.isLeaf = false;
@@ -361,13 +381,13 @@ int insert_into_internal_after_splitting(MemoryPage * m_internal, llu left_idx, 
     new_internal->header.oneMoreOffset = internal->keyValue[split].offset;
 
     internal->header.numOfKeys = split;
-    set_parent(internal->keyValue[split].offset / PAGE_SIZE, m_new_internal->page_num);
+    set_parent(table_id, internal->keyValue[split].offset / PAGE_SIZE, m_new_internal->page_num);
 
     for(llu idx = split + 1; idx < len; ++idx) {
         new_internal->keyValue[idx - split - 1].key    = internal->keyValue[idx].key;
         new_internal->keyValue[idx - split - 1].offset = internal->keyValue[idx].offset;
 
-        set_parent(internal->keyValue[idx].offset / PAGE_SIZE, m_new_internal->page_num);
+        set_parent(table_id, internal->keyValue[idx].offset / PAGE_SIZE, m_new_internal->page_num);
     }
 
     register_dirty_page(m_internal,     make_dirty(0, PAGE_HEADER_SIZE));
@@ -378,10 +398,10 @@ int insert_into_internal_after_splitting(MemoryPage * m_internal, llu left_idx, 
 
 /* print all key, values
  */
-void print_all()
+void print_all(int table_id)
 {
     // Iterate leaf pages from left to right
-    LeafPage * it = (LeafPage*)(find_first_leaf()->p_page);
+    LeafPage * it = (LeafPage*)(find_first_leaf(table_id)->p_page);
     while(1) {
         int len = it->header.numOfKeys;
         // print all records in it
@@ -389,13 +409,16 @@ void print_all()
             printf("%llu: %s\n", it->keyValue[idx].key, it->keyValue[idx].value);
         }
         if(it->header.rightOffset == 0) break;  // until there isn't any right leaf page
-        it = (LeafPage*)(get_page(it->header.rightOffset / PAGE_SIZE)->p_page);
+        it = (LeafPage*)(get_page(table_id, it->header.rightOffset / PAGE_SIZE)->p_page);
     }
 }
 
-int delete(llu key)
+int delete(int table_id, llu key)
 {
-    MemoryPage * m_leaf = find_leaf(key);
+    MemoryPage * m_head = get_header_page(table_id);
+    HeaderPage * head = (HeaderPage*)(m_head->p_page);
+
+    MemoryPage * m_leaf = find_leaf(table_id, key);
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
     
     int del_idx = -1;
@@ -431,12 +454,11 @@ int delete(llu key)
     }
     --(leaf->header.numOfKeys);
 
-
-    commit_page((Page*)&headerPage, 0, HEADER_PAGE_COMMIT_SIZE, 0);
+    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
     register_dirty_page(m_leaf, make_dirty(0, PAGE_HEADER_SIZE + leaf->header.numOfKeys * sizeof(Record)));
 
-    if(false == commit_dirty_pages())
-        return -1;
+    // if(false == commit_dirty_pages())
+    //     return -1;
 
     // if(leaf->header.numOfKeys < LEAF_MERGE_TOLERANCE) {
     //      return merge_leaf(m_leaf) - 1;
