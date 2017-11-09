@@ -17,7 +17,7 @@
 #define LEAF_MERGE_TOLERANCE (LEAF_KEYVALUE_NUM / 2)
 #define INTERNAL_MERGE_TOLERANCE (INTERNAL_KEYVALUE_NUM / 2)
 
-void print_tree();
+void print_tree(int table_id);
 
 MemoryPage * get_root();
 int height(MemoryPage * root);

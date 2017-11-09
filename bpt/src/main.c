@@ -22,7 +22,7 @@ int main( int argc, char ** argv ) {
         case 'd':
             scanf("%d", &input);
             delete(fd, input);
-            print_tree();
+            print_tree(fd);
             break;
         case 'i':
             scanf("%d", &input);
@@ -59,7 +59,7 @@ int main( int argc, char ** argv ) {
             return EXIT_SUCCESS;
             break;
         case 't':
-            print_tree();
+            print_tree(fd);
             break;
         case 'v':
             // verbose_output = !verbose_output;
@@ -67,7 +67,7 @@ int main( int argc, char ** argv ) {
         case 'x':
             // if (root)
             //     root = destroy_tree(root);
-            print_tree();
+            print_tree(fd);
             break;
         default:
             // usage_2();

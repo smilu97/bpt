@@ -10,7 +10,7 @@ int found_idx = 0;
 int fail[1000];
 int fail_idx = 0;
 
-#define TEST_BUF (100000)
+#define TEST_BUF (1000)
 #define INSERT_NUM (1000000)
 
 extern unsigned long long pinned_page_num;

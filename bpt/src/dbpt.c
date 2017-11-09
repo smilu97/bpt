@@ -37,6 +37,7 @@ void print_tree(int table_id)
             }
         }
         putchar('|');
+        free_pinned();
 
         if(cur->header.isLeaf) continue;
 
@@ -164,6 +165,7 @@ char * find(int table_id, llu key)
     MemoryPage * m_leaf = find_leaf(table_id, key);
     int idx = find_idx_from_leaf(m_leaf, key);
     if(idx == -1) return NULL;
+    free_pinned();
     return ((LeafPage*)(m_leaf->p_page))->keyValue[idx].value;
 }
 

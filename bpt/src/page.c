@@ -159,6 +159,9 @@ int open_table(const char * filepath)
         root->header.parentOffset = 0;
         root->header.rightOffset = 0;
 
+        register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
+        register_dirty_page(m_root, make_dirty(0, PAGE_HEADER_SIZE));
+
         return fd;
     }
 }
@@ -182,7 +185,6 @@ int close_table(int table_id)
             // Prepare if cur is head or tail
             if(cur == lru_head) lru_head = cur->next;
             if(cur == lru_tail) lru_tail = cur->prev;
-
             // Unlink cur from the chain
             if(cur->prev) cur->prev->next = cur->next;
             if(cur->next) cur->next->prev = cur->prev;
