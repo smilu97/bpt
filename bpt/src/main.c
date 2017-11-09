@@ -52,6 +52,13 @@ int main( int argc, char ** argv ) {
         case 'l':
             // print_leaves(root);
             break;
+        case 'o':
+            scanf("%s", value_buf);
+            if(fd) {
+                close_table(fd);
+            }
+            fd = open_table(value_buf);
+            break;
         case 'q':
             while (getchar() != (int)'\n');
             close_table(fd);
