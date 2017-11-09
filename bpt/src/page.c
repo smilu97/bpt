@@ -5,6 +5,51 @@
 
 #include "page.h"
 
+/* page_buf[i] is head of hash chain, it will be used to point memory page
+ * that has hash(page_num) == i
+ * 
+ * page_nums in all the memory page linked in same hash chain
+ * will have same hashed value
+ */
+MemoryPage * page_buf[MEMPAGE_MOD];
+
+/* It point the first of whole serialized memory page objects
+ */
+MemoryPage * mempages;
+
+/* It point the latest free memory page
+ * 
+ * The `next` pointer of every free memory page points the next
+ * free memory page.
+ * So, we can find all the free memory pages
+ */
+MemoryPage * free_mempage;
+
+/* mempage_num: It represents the number of in-used memory pages
+ * Since this mempage_num has same value of MAX_MEMPAGE, the transition
+ * of memory page will occured
+ */
+int mempage_num;
+
+/* It has the biggest mempage index ever we used
+ * 
+ * When we find free memory page to use, if free_mempage is zero,
+ * we use mempages[last_mempage_idx++]
+ */
+int last_mempage_idx;
+
+/* The maximum number of memory pages
+ * Initialized by init_db(buf_num), buf_num will be MAX_MEMPAGE
+ */
+int MAX_MEMPAGE;
+
+/* Represents pinned memory pages
+ */
+MemoryPage * pinned_pages[PIN_CONTAINER_SIZE];
+int pinned_page_num;
+
+/* Describe header page
+ */
 void describe_header(HeaderPage * head)
 {
     printf("freePage:   %llu\n", head->freePageOffset / PAGE_SIZE);
@@ -12,6 +57,8 @@ void describe_header(HeaderPage * head)
     printf("rootPage:   %llu\n", head->rootPageOffset / PAGE_SIZE);
 }
 
+/* Describe leaf page
+ */
 void describe_leaf(MemoryPage * m_leaf)
 {
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
@@ -26,6 +73,8 @@ void describe_leaf(MemoryPage * m_leaf)
     } puts("");
 }
 
+/* Describe internal page
+ */
 void describe_internal(MemoryPage * m_internal)
 {
     InternalPage * internal = (InternalPage*)(m_internal->p_page);
@@ -39,12 +88,41 @@ void describe_internal(MemoryPage * m_internal)
     } puts("");
 }
 
+/* Initialize db to prepare memory cache
+ * make global variables usable state
+ */
 int init_db(int buf_num)
 {
     MAX_MEMPAGE = buf_num;
-    return init_buf() - 1;
+
+    // Initialize hash table
+    for(llu idx = 0; idx < MEMPAGE_MOD; ++idx) {
+        page_buf[idx] = NULL;
+    }
+
+    // Initialize memory pages
+    mempage_num = 0;
+    mempages = (MemoryPage*)malloc(sizeof(MemoryPage) * MAX_MEMPAGE);  // Allocate big space
+    Page * pages = (Page*)malloc(sizeof(Page) * MAX_MEMPAGE);
+    for(int i=0; i<MAX_MEMPAGE; ++i) {
+        mempages[i].p_page = pages + i;
+        mempages[i].cache_idx = i;
+        mempages[i].dirty = 0;
+        mempages[i].pin_count = 0;
+    }
+    free_mempage = 0;
+    last_mempage_idx = 0;
+    pinned_page_num = 0;
+    LRUInit();
+
+    return 0;
 }
 
+/* Open new table
+ * 
+ * It opens new file and return the file descriptor of that file
+ * If the file wasn't exist, initialize headerpage, and root leafpage
+ */
 int open_table(const char * filepath)
 {
     int fd, result;
@@ -85,6 +163,11 @@ int open_table(const char * filepath)
     }
 }
 
+/* close the file that has content of table
+ * 
+ * and de-allocate and commit all in-memory pages
+ * related with the table
+ */
 int close_table(int table_id)
 {
     LRUNode * cur = lru_head;
@@ -106,6 +189,7 @@ int close_table(int table_id)
     
             free(cur);
 
+            --lru_cnt;
             cur = next;
         } else {
             cur = cur->next;
@@ -118,29 +202,10 @@ int close_table(int table_id)
 
 int shutdown_db(void)
 {
-    // Make sure not to commit free memory pages
-    MemoryPage * m_cur = free_mempage;
-    while(m_cur) {
-        free_mempage->dirty = 0;
-        m_cur = m_cur->next;
+    MemoryPage * mem;
+    while((mem = (MemoryPage*)LRUPop())) {
+        make_free_mempage(mem->cache_idx);
     }
-    free_mempage = 0;
-
-    // Commit memory pages
-    for(int idx = 0; idx < last_mempage_idx; ++idx) {
-        Dirty * d_cur = mempages[idx].dirty;
-        while(d_cur) {
-            int size = d_cur->right - d_cur->left;
-            commit_page(mempages[idx].table_id, mempages[idx].p_page, mempages[idx].page_num, size, d_cur->left);
-        }
-    }
-
-    for(lld idx = 0; idx < MEMPAGE_MOD; ++idx) {
-        page_buf[idx] = 0;
-    }
-    mempage_num = 0;
-    last_mempage_idx = 0;
-    dirty_queue_size = 0;
 
     /* free(mempages[0].p_page) can de-allocate all pages
      * because mempages[0].p_page is pointing the first offset of pages
@@ -160,43 +225,17 @@ MemoryPage * get_header_page(int table_id)
     return get_page(table_id, 0);
 }
 
-/*
- * Make global variables same in all environments
- * Make all global variables be zero, 0
- */
-int init_buf()
-{
-    // Initialize hash table
-    for(llu idx = 0; idx < MEMPAGE_MOD; ++idx) {
-        page_buf[idx] = NULL;
-    }
-
-    // Initialize memory pages
-    mempage_num = 0;
-    mempages = (MemoryPage*)malloc(sizeof(MemoryPage) * MAX_MEMPAGE);  // Allocate big space
-    Page * pages = (Page*)malloc(sizeof(Page) * MAX_MEMPAGE);
-    for(int i=0; i<MAX_MEMPAGE; ++i) {
-        mempages[i].p_page = pages + i;
-        mempages[i].cache_idx = i;
-        mempages[i].dirty = 0;
-    }
-    free_mempage = 0;
-    last_mempage_idx = 0;
-    dirty_queue_size = 0;
-    LRUInit();
-
-    return true;
-}
-
 int commit_page(int table_id, Page * p_page, llu page_num, llu size, llu offset)
 {
-    MemoryPage * m_head = get_header_page(table_id);
-    HeaderPage * head = (HeaderPage*)m_head->p_page;
+    if(page_num > 0) {
+        MemoryPage * m_head = get_header_page(table_id);
+        HeaderPage * head = (HeaderPage*)m_head->p_page;
+    
+        if(page_num >= head->numOfPages) {
+            head->numOfPages = page_num + 1;
 
-    if(page_num >= head->numOfPages) {
-        head->numOfPages = page_num + 1;
-
-        commit_page(table_id, (Page*)head, 0, PAGE_SIZE, 0);
+            commit_page(table_id, (Page*)head, 0, HEADER_PAGE_COMMIT_SIZE, 0);
+        }
     }
 
     return pwrite(table_id, p_page, size, (page_num * PAGE_SIZE) + offset) == size;
@@ -206,6 +245,36 @@ int load_page(int table_id, Page * p_page, llu page_num, llu size)
 {
     
     return pread(table_id, p_page, size, page_num * PAGE_SIZE) == size;
+}
+
+/* Find unpinned memory page to de-allocate
+ */
+MemoryPage * pop_unpinned_lru()
+{
+    LRUNode * cur = lru_head;
+    MemoryPage * mem;
+    while(cur) {
+        mem = cur->mem;
+        if(mem->pin_count == 0) {
+            break;
+        }
+        cur = cur->next;
+    }
+
+    if(cur) {
+        // Delete LRUNode
+        if(cur->prev) cur->prev->next = cur->next;
+        if(cur->next) cur->next->prev = cur->prev;
+        if(cur == lru_head) lru_head = cur->next;
+        if(cur == lru_tail) lru_tail = cur->prev;
+        free(cur);
+        --(lru_cnt);
+
+        return mem;
+    } else {
+        myerror("Failed to find memory page: pop_unpinned_lru");
+        return NULL;
+    }
 }
 
 /* Bring page from memory if there are in memory,
@@ -218,7 +287,12 @@ MemoryPage * get_page(int table_id, llu page_num)
     MemoryPage * mp_cur = find_hash_friend(page_buf[hash_idx], table_id, page_num);
     if(mp_cur) {
         LRUAdvance(mp_cur->p_lru);
+        register_pinned(mp_cur);
         return mp_cur;
+    }
+
+    if(lru_cnt != mempage_num) {
+        myerror("lru_cnt != mempage_num");
     }
 
     // If EIP reaches here, it couldn't find the page in memory
@@ -228,15 +302,24 @@ MemoryPage * get_page(int table_id, llu page_num)
     // delete one page from the memory
     while(mempage_num >= MAX_MEMPAGE) {
         // Select the front of queue as the pray to deallocate memory for new one
-        llu del_num = ((MemoryPage*)LRUPop())->page_num;
-        make_free_mempage(mempages[del_num].cache_idx);
+        MemoryPage * pop_mem = pop_unpinned_lru();
+        if(pop_mem == 0) {
+            myerror("Failed in pop_unpinned_lru");
+            return NULL;
+        }
+        make_free_mempage(pop_mem->cache_idx);
     }
 
     // Assert mempage_num < MAX_MEMPAGE
     // There are space for new memory page
 
     // Allocate new page, or use old memory page
-    MemoryPage * new_page = new_mempage();
+
+    if(last_mempage_idx >= MAX_MEMPAGE && free_mempage == 0) {
+        myerror("last_mempage_idx >= MAX_MEMPAGE");
+    }
+
+    MemoryPage * new_page = new_mempage(page_num, table_id);
     if(new_page == NULL) {
         myerror("Failed to get new_mempage");
         return NULL;
@@ -252,17 +335,13 @@ MemoryPage * get_page(int table_id, llu page_num)
             load_page(table_id, new_page->p_page, page_num, PAGE_SIZE);
         }
     }
-    
-    new_page->next = NULL;  // new_page will be tail of linked list
-    new_page->page_num = page_num;
-    new_page->p_lru = LRUPush(new_page);
-    new_page->table_id = table_id;
 
     // Put into linked list
     new_page->next = page_buf[hash_idx];
     page_buf[hash_idx] = new_page;
 
-    ++mempage_num;
+    register_pinned(new_page);
+
     return new_page;
 }
 
@@ -281,7 +360,7 @@ MemoryPage * new_page(int table_id)
         head->freePageOffset = ((FreePage*)(ret->p_page))->nextOffset;
     }
 
-    register_dirty_page(m_head, make_dirty(0, 24));
+    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
 
     return ret;
 }
@@ -330,9 +409,9 @@ MemoryPage * find_hash_friend(MemoryPage * mem, int table_id, llu page_num)
 void make_free_mempage(llu idx)
 {
     MemoryPage * mem = mempages + idx;
-    int table_id = mem->table_id;
-    Page * page = mem->p_page;
-    llu page_num = mem->page_num;
+    int table_id     = mem->table_id;
+    Page * page      = mem->p_page;
+    llu page_num     = mem->page_num;
     llu hash_del_idx = hash_llu(page_num, MEMPAGE_MOD);
     
     // Find memory page from linked list
@@ -346,7 +425,7 @@ void make_free_mempage(llu idx)
         }
         // Iterate next
         p_del_mp_cur = &(del_mp_cur->next);
-        del_mp_cur = del_mp_cur->next;
+        del_mp_cur =     del_mp_cur->next ;
     }
 
     // Make clean page
@@ -371,15 +450,14 @@ void make_free_mempage(llu idx)
     --mempage_num;
 }
 
-MemoryPage * new_mempage()
+MemoryPage * new_mempage(llu page_num, int table_id)
 {
     MemoryPage * ret;
+    ++mempage_num;
 
     if(free_mempage) {
         ret = free_mempage;
         free_mempage = free_mempage->next;
-
-        return ret;
     } else {
         if(last_mempage_idx >= MAX_MEMPAGE) {
             myerror("mempage overflow in new_mempage");
@@ -387,14 +465,25 @@ MemoryPage * new_mempage()
         }
         ret = mempages + last_mempage_idx;
         ++last_mempage_idx;
-
-        return ret;
     }
+
+    ret->page_num = page_num;
+    ret->table_id = table_id;
+    ret->p_lru = LRUPush(ret);
+
+    return ret;
 }
 
 Dirty * make_dirty(int left, int right)
 {
     Dirty * ret = (Dirty*)malloc(sizeof(Dirty));
+
+    if(ret == 0) {
+        myerror("Failed to make new dirty");
+        return NULL;
+    }
+
+    // Initialize new dirty
     ret->left = left;
     ret->right = right;
     ret->next = 0;
@@ -425,4 +514,23 @@ int register_dirty_page(MemoryPage * m_page, Dirty * dirty)
     m_page->dirty = dirty;
 
     return true;
+}
+
+void register_pinned(MemoryPage * mem)
+{
+    if(mem->pin_count == 0) {
+        if(pinned_page_num >= PIN_CONTAINER_SIZE) {
+            myerror("TOO LOW PIN_CONTAINER_SIZE");
+        }
+        pinned_pages[pinned_page_num++] = mem;
+    }
+    ++(mem->pin_count);
+}
+
+void free_pinned()
+{
+    for(int idx = 0; idx < pinned_page_num; ++idx) {
+        pinned_pages[idx]->pin_count = 0;
+    }
+    pinned_page_num = 0;
 }

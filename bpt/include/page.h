@@ -50,13 +50,30 @@ typedef char BYTE;
 #define LEAF_KEYVALUE_NUM ((PAGE_SIZE - PAGE_HEADER_SIZE) / sizeof(Record))
 #define INTERNAL_KEYVALUE_NUM ((PAGE_SIZE - PAGE_HEADER_SIZE) / (KEY_SIZE + sizeof(offsetType)))
 
+/* The number of hash chain
+ * When we find page in memory,
+ * we use h(page_num) to find head of chain
+ * 
+ * MEMPAGE_MOD is the number of head of chains
+ * 
+ * As it has big number, memory page finding become faster
+ */
 #define MEMPAGE_MOD (1000000)
 
-#define DIRTY_QUEUE_SIZE 10000
+/* TODO: experiment for O_SYNC
+ * When we open some files, always we use this option
+ */
+#define FILE_OPEN_SETTING (O_RDWR | O_SYNC)
 
-#define FILE_OPEN_SETTING (O_RDWR)
-
+/* The minimum size to commit header page
+ * because the rest are reserved
+ */
 #define HEADER_PAGE_COMMIT_SIZE 24
+
+/* Representing size of container that save
+ * the pinned memory pages
+ */
+#define PIN_CONTAINER_SIZE 100000
 
 typedef struct Page {
     BYTE bytes[PAGE_SIZE];
@@ -66,7 +83,7 @@ typedef struct Page {
  *  Header page must be first page in file
  *  When we open the data file at first,
  *  initializing disk-based b+tree should be 
- *   done using this header page.
+ *  done using this header page.
  */
 typedef struct HeaderPage {
     offsetType freePageOffset;
@@ -87,7 +104,7 @@ typedef struct FreePage {
 } FreePage;
 
 /*
- *  type representing header of page
+ *  Type representing header of page
  *  Internal, Leaf page have first 128byte
  *  as a page header.
  */
@@ -108,7 +125,7 @@ typedef struct InternalPageHeader {
 } InternalPageHeader;
 
 /*
- *  type representing serialized key and value
+ *  Type representing serialized key and value
  */
 typedef struct Record {
     llu key;
@@ -149,18 +166,33 @@ typedef struct InternalPage {
     InternalKeyValue keyValue[INTERNAL_KEYVALUE_NUM];
 } InternalPage;
 
+/* Dirty represents the range of dirty area in specific memory page
+ *
+ * Dirty means not being synced with disk
+ * 
+ * Dirty has next pointer to be in chain, and every dirty nodes in same chain
+ * doesn't have any intersects
+ * 
+ * Dirty areas will be cleaned(synced with disk) in close_table or being free
+ */
 typedef struct Dirty {
     int left;
     int right;
     struct Dirty * next;
 } Dirty;
 
-/*
- *  
+/* MemoryPage is page in memory
+ * 
+ * It will be allocated when init_db called
+ * the parameter buf_num of init_db(int) represents the number of MemoryPage
+ * so, MemoryPages are allocated only in init_db(int) sizeof(MemoryPage) * buf_num
+ * and, there will be sizeof(Page) * buf_num of space to save page content and
+ * this space will be pointed by p_page in MemoryPages
  */
 typedef struct MemoryPage {
     Dirty * dirty;
     int table_id;
+    int pin_count;
     llu cache_idx;
     llu page_num;
     LRUNode * p_lru;
@@ -184,6 +216,7 @@ int shutdown_db(void);
 MemoryPage * get_header_page(int table_id);
 int init_buf();
 void delete_cache();
+MemoryPage * pop_unpinned_lru();
 MemoryPage * get_page(int table_id, llu page_num);
 MemoryPage * new_page(int table_id);
 int free_page(int table_id, llu idx);
@@ -194,23 +227,23 @@ int set_parent(int table_id, llu page_num, llu parent_num);
 MemoryPage * find_hash_friend(MemoryPage * mem, int table_id, llu page_num);
 
 void make_free_mempage(llu idx);
-MemoryPage * new_mempage();
+MemoryPage * new_mempage(llu page_num, int table_id);
 
 Dirty * make_dirty(int left, int right);
 int register_dirty_page(MemoryPage * m_page, Dirty * dirty);
+
+void register_pinned(MemoryPage * mem);
+void free_pinned();
 
 /*******************************************************************
  * Global variables
  *******************************************************************/
 
-MemoryPage * page_buf[MEMPAGE_MOD];
-MemoryPage * mempages;
-MemoryPage * free_mempage;
-int mempage_num;
-int last_mempage_idx;
-int MAX_MEMPAGE;
 
-int dirty_queue[DIRTY_QUEUE_SIZE];
-int dirty_queue_size;
+/* Import global variables from "lru.h"
+ */
+extern LRUNode * lru_head;
+extern LRUNode * lru_tail;
+extern llu lru_cnt;
 
 #endif

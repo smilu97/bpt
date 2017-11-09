@@ -27,5 +27,5 @@ long long min_lld(long long a, long long b)
 
 void myerror(const char * str)
 {
-    fprintf(stderr, "%s\n", str);
+    fprintf(stderr, ANSI_COLOR_RED "%s\n" ANSI_COLOR_RESET, str);
 }

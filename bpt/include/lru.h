@@ -16,6 +16,4 @@ LRUNode * LRUPush(void * mem);
 void LRUAdvance(LRUNode * node);
 void * LRUPop();
 
-LRUNode *lru_head, *lru_tail;
-
 #endif

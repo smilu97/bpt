@@ -1,6 +1,9 @@
 
 #include "lru.h"
 
+LRUNode *lru_head, *lru_tail;
+unsigned long long lru_cnt = 0;
+
 void LRUClean() {
     LRUNode * cur = lru_head;
     while(cur != 0) {
@@ -13,7 +16,9 @@ void LRUClean() {
 }
 
 void LRUInit() {
-    lru_head = 0, lru_tail = 0;
+    lru_head = 0;
+    lru_tail = 0;
+    lru_cnt = 0;
 }
 
 LRUNode * LRUPush(void * mem)
@@ -36,6 +41,7 @@ LRUNode * LRUPush(void * mem)
         lru_tail = new_node;
     }
 
+    ++lru_cnt;
     return new_node;
 }
 
@@ -52,6 +58,7 @@ void * LRUPop()
     void * res = h->mem;
     free(h);
 
+    --lru_cnt;
     return res;
 }
 

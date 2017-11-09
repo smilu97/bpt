@@ -10,13 +10,14 @@ int found_idx = 0;
 int fail[1000];
 int fail_idx = 0;
 
-#define INSERT_NUM (100000)
+#define TEST_BUF (100000)
+#define INSERT_NUM (1000000)
 
 int test_insert_sequence()
 {
     unlink("db/test_insert_seq.db");
     
-    init_db(10000);
+    init_db(TEST_BUF);
     int fd = open_table("db/test_insert_seq.db");
 
     char buf[200];
@@ -36,6 +37,7 @@ int test_insert_sequence()
         sprintf(buf, "I'm a record %d", i);
         char * record = find(fd, i);
         if(record == NULL || strcmp(record, buf) != 0) {
+            printf("record: %s\nbuf: %s\n", record, buf);
             success = 0;
             break;
         }
@@ -43,7 +45,7 @@ int test_insert_sequence()
     if(success) {
         puts("test insert sequence success");
     } else {
-        puts("sequence validation fail");
+        myerror("sequence validation fail");
     }
 
     close_table(fd);
@@ -55,7 +57,7 @@ int test_insert_random()
 {
     unlink("db/test_insert_random.db");
 
-    init_db(10000);
+    init_db(TEST_BUF);
     int fd = open_table("db/test_insert_random.db");
 
     char buf[200];
@@ -79,6 +81,7 @@ int test_insert_random()
         char * record = find(fd, indices[i]);
         
         if(record == NULL || strcmp(record, buf) != 0) {
+            printf("record: %s\nbuf: %s\n", record, buf);
             success = 0;
             break;
         } 
@@ -86,7 +89,7 @@ int test_insert_random()
     if(success) {
         puts("test insert random success");
     } else {
-        puts("random validation failed");
+        myerror("random validation failed");
     }
     
     close_table(fd);

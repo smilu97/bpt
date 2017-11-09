@@ -41,4 +41,11 @@ void print_all();
 int delete(int table_id, llu key);
 int merge_leaf(MemoryPage * m_leaf);
 
+extern MemoryPage * page_buf[MEMPAGE_MOD];
+extern MemoryPage * mempages;
+extern MemoryPage * free_mempage;
+extern int mempage_num;
+extern int last_mempage_idx;
+extern int MAX_MEMPAGE;
+
 #endif

@@ -14,7 +14,7 @@
      }
 
      if(argc > 1) {
-         if((fd = open_table(argv[1]))) {
+         if((fd = open_table(argv[1])) == 0) {
              printf("Failed to open file!\n");
              return -1;
          }

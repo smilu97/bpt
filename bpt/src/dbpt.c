@@ -183,9 +183,7 @@ int insert(int table_id, llu key, const char * value)
     } else {
         ret = insert_into_leaf_after_splitting(m_leaf, key, value);
     }
-
-    // if(false == commit_dirty_pages())
-    //     return -1;
+    free_pinned();
 
     return ret - 1;
 }
@@ -254,6 +252,7 @@ int insert_into_new_root(MemoryPage * m_left, llu new_key, MemoryPage * m_right)
     register_dirty_page(m_new_root, make_dirty(0, PAGE_HEADER_SIZE + 20));
     register_dirty_page(m_left,     make_dirty(0, PAGE_HEADER_SIZE));
     register_dirty_page(m_right,    make_dirty(0, PAGE_HEADER_SIZE));
+    register_dirty_page(m_head,     make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
     
     return true;
 }
@@ -438,7 +437,7 @@ int delete(int table_id, llu key)
     if(del_idx == -1) {
         if(leaf->keyValue[left].key == key) {
             del_idx = left;
-        } else if(leaf->keyValue[right].key == key) { // if(leaf->keyValue[right].key == key)
+        } else if(leaf->keyValue[right].key == key) {
             del_idx = right;
         }
     }
@@ -457,12 +456,10 @@ int delete(int table_id, llu key)
     register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
     register_dirty_page(m_leaf, make_dirty(0, PAGE_HEADER_SIZE + leaf->header.numOfKeys * sizeof(Record)));
 
-    // if(false == commit_dirty_pages())
-    //     return -1;
-
     // if(leaf->header.numOfKeys < LEAF_MERGE_TOLERANCE) {
     //      return merge_leaf(m_leaf) - 1;
     // }
+    free_pinned();
     
     return 0;
 }
