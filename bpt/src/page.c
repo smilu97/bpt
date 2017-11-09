@@ -369,11 +369,18 @@ MemoryPage * new_page(int table_id)
 
 int set_parent(int table_id, llu page_num, llu parent_num)
 {
-    MemoryPage * m_page = get_page(table_id, page_num);
-    InternalPage * page = (InternalPage*)(m_page->p_page);
-    page->header.parentOffset = parent_num * PAGE_SIZE;
+    llu hash_idx = hash_llu(page_num, MEMPAGE_MOD);
+    MemoryPage * m_page = find_hash_friend(page_buf[hash_idx], table_id, page_num);
+    llu parentOffset = PAGE_SIZE * parent_num;
 
-    register_dirty_page(m_page, make_dirty(0, 8));
+    if(m_page) {
+        InternalPage * page = (InternalPage*)(m_page->p_page);
+        page->header.parentOffset = parentOffset;
+
+        register_dirty_page(m_page, make_dirty(0, 8));
+    } else {
+        pwrite(table_id, &parentOffset, 8, PAGE_SIZE * page_num);
+    }
 
     return 1;
 }
