@@ -23,6 +23,7 @@ int test_page()
         Page * page = get_page(fd, i)->p_page;
         sprintf(page->bytes, "Hello I'm record %d", i);
         commit_page(fd, page, i, 200, 0);
+        free_pinned();
     }
 
     for(int i=1; i<PAGE_NUM; ++i) {
@@ -33,6 +34,7 @@ int test_page()
             printf("page : %s\n", page->bytes);
             return false;
         }
+        free_pinned();
     }
 
     printf("InternalPageHeader  size: %lu\n", sizeof(InternalPageHeader));

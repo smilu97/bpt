@@ -371,7 +371,7 @@ int set_parent(int table_id, llu page_num, llu parent_num)
     InternalPage * page = (InternalPage*)(m_page->p_page);
     page->header.parentOffset = parent_num * PAGE_SIZE;
 
-    register_dirty_page(m_page, make_dirty(8, 16));
+    register_dirty_page(m_page, make_dirty(0, 8));
 
     return 1;
 }
@@ -518,6 +518,9 @@ int register_dirty_page(MemoryPage * m_page, Dirty * dirty)
 
 void register_pinned(MemoryPage * mem)
 {
+    if(pinned_page_num >= 900) {
+        puts("over 900");
+    }
     if(mem->pin_count == 0) {
         if(pinned_page_num >= PIN_CONTAINER_SIZE) {
             myerror("TOO LOW PIN_CONTAINER_SIZE");

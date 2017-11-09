@@ -13,6 +13,8 @@ int fail_idx = 0;
 #define TEST_BUF (100000)
 #define INSERT_NUM (1000000)
 
+extern unsigned long long pinned_page_num;
+
 int test_insert_sequence()
 {
     unlink("db/test_insert_seq.db");

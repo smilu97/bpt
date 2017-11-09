@@ -63,7 +63,7 @@ typedef char BYTE;
 /* TODO: experiment for O_SYNC
  * When we open some files, always we use this option
  */
-#define FILE_OPEN_SETTING (O_RDWR | O_SYNC)
+#define FILE_OPEN_SETTING (O_RDWR)
 
 /* The minimum size to commit header page
  * because the rest are reserved
