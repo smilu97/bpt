@@ -104,7 +104,7 @@ MemoryPage * find_leaf(int table_id, llu key)
     return m_root;
 }
 
-MemoryPage * find_left_leaf(MemoryPage * m_leaf)
+MemoryPage * find_left(MemoryPage * m_leaf)
 {
     int table_id = m_leaf->table_id;
 
@@ -116,9 +116,10 @@ MemoryPage * find_left_leaf(MemoryPage * m_leaf)
     InternalPage * parent = (InternalPage*)(m_parent->p_page);
 
     int leaf_idx = get_left_idx(parent, PAGE_SIZE * m_leaf->page_num);
-    if(leaf_idx == 0) return NULL;
 
-    return get_page(table_id, parent->keyValue[leaf_idx - 1].offset / PAGE_SIZE);
+    if(leaf_idx == 0) return NULL;
+    if(leaf_idx == 1) return get_page(table_id, parent->header.oneMoreOffset / PAGE_SIZE);
+    return get_page(table_id, parent->keyValue[leaf_idx - 2].offset / PAGE_SIZE);
 }
 
 MemoryPage * find_first_leaf(int table_id)
@@ -332,7 +333,6 @@ int insert_into_parent(MemoryPage * m_left, llu new_key, MemoryPage * m_new_leaf
 
 llu get_left_idx(InternalPage * parent, llu leftOffset)
 {
-    // TODO: This algorhthm is O(n)
     if(parent->header.oneMoreOffset == leftOffset) return 0;
     llu left_idx = 0;
     while (left_idx <= parent->header.numOfKeys && 
@@ -416,10 +416,20 @@ void print_all(int table_id)
 
 int delete(int table_id, llu key)
 {
+    MemoryPage * m_leaf = find_leaf(table_id, key);
+    int ret = delete_leaf_entry(m_leaf, key);
+
+    free_pinned();
+
+    return ret - 1;
+}
+
+int delete_leaf_entry(MemoryPage * m_leaf, llu key)
+{
+    int table_id = m_leaf->table_id;
+
     MemoryPage * m_head = get_header_page(table_id);
     HeaderPage * head = (HeaderPage*)(m_head->p_page);
-
-    MemoryPage * m_leaf = find_leaf(table_id, key);
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
     
     int del_idx = -1;
@@ -458,15 +468,103 @@ int delete(int table_id, llu key)
     register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
     register_dirty_page(m_leaf, make_dirty(0, PAGE_HEADER_SIZE + leaf->header.numOfKeys * sizeof(Record)));
 
-    // if(leaf->header.numOfKeys < LEAF_MERGE_TOLERANCE) {
-    //      return merge_leaf(m_leaf) - 1;
-    // }
-    free_pinned();
+    if(leaf->header.parentOffset != 0 && leaf->header.numOfKeys < LEAF_MERGE_TOLERANCE) {
+        MemoryPage * m_friend;
+        int friend_is_right = 1;
+        if(leaf->header.rightOffset != 0) {
+            m_friend = get_page(table_id, leaf->header.rightOffset / PAGE_SIZE);
+        } else {
+            m_friend = find_left(m_leaf);
+            friend_is_right = 0;
+        }
+        LeafPage * friend = (LeafPage*)(m_friend->p_page);
+        if(friend->header.numOfKeys + leaf->header.numOfKeys <= LEAF_SPLIT_TOLERANCE) {
+            if(friend_is_right)
+                return coalesce_leaf(m_leaf, m_friend);
+            else 
+                return coalesce_leaf(m_friend, m_leaf);
+        } else {
+            if(friend_is_right)
+                return redistribute_leaf(m_leaf, m_friend);
+            else
+                return redistribute_leaf(m_friend, m_leaf);
+        }
+    }
     
-    return 0;
+    return true;
 }
 
-int merge_leaf(MemoryPage * m_leaf)
+int delete_internal_entry(MemoryPage * m_internal, llu key)
+{
+    InternalPage * internal = (InternalPage*)(m_internal->p_page);
+
+    int len = internal->header.numOfKeys;
+    int left = 0, right = len - 1;
+    int pos = -1;
+    while(left + 1 < right) {
+        int mid = ((left + right) >> 1);
+        int mid_key = internal->keyValue[mid].key;
+        if(mid_key < key) {
+            left = mid;
+        } else if(mid_key > key) {
+            right = mid;
+        } else {
+            pos = mid;
+            break;
+        }
+    }
+    if(pos == -1) {
+        if(internal->keyValue[left].key == key) {
+            pos = left;
+        } else if(internal->keyValue[right].key == key) {
+            pos = right;
+        }
+    }
+    if(pos == -1) {
+        return false;
+    }
+    
+    int copy_size = (len - pos - 1) * sizeof(InternalKeyValue);
+    memcpy(internal->keyValue + pos, internal->keyValue + (pos + 1), copy_size);
+    --(internal->header.numOfKeys);
+
+    int commit_left = sizeof(InternalPageHeader) + sizeof(InternalKeyValue) * pos;
+    int commit_right = commit_left + sizeof(InternalKeyValue) * copy_size;
+
+    register_dirty_page(m_internal, make_dirty(0, PAGE_HEADER_SIZE));
+    register_dirty_page(m_internal, make_dirty(commit_left, commit_right));
+
+    return true;
+}
+
+/* This function merge two leaf node
+ */
+int coalesce_leaf(MemoryPage * m_left, MemoryPage * m_right)
+{
+    int table_id = m_left->table_id;
+
+    LeafPage * left = (LeafPage*)(m_left->p_page);
+    LeafPage * right = (LeafPage*)(m_right->p_page);
+
+    int left_len = left->header.numOfKeys;
+    int right_len = right->header.numOfKeys;
+
+    memcpy(left->keyValue + left_len, right->keyValue, sizeof(Record) * right_len);
+    left->header.numOfKeys += right_len;
+
+    register_dirty_page(m_left, make_dirty(0, sizeof(LeafPageHeader) + sizeof(Record) * (left_len + right_len)));
+    free_page(table_id, m_right->page_num);
+
+    MemoryPage * m_parent = get_page(table_id, left->header.parentOffset / PAGE_SIZE);
+
+    delete_internal_entry(m_parent, right->keyValue[0].key);
+
+    return true;
+}
+
+/* This function redistribute records
+ */
+int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right)
 {
     return true;
 }

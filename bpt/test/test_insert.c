@@ -11,7 +11,7 @@ int fail[1000];
 int fail_idx = 0;
 
 #define TEST_BUF (10000)
-#define INSERT_NUM (1000000)
+#define INSERT_NUM (10000)
 
 extern unsigned long long pinned_page_num;
 
@@ -25,7 +25,6 @@ int test_insert_sequence()
     char buf[200];
     
     printf("Insert sequence start(%d)\n", INSERT_NUM);
-
     int start = time(0);
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", i);

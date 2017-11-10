@@ -399,7 +399,7 @@ int free_page(int table_id, llu page_num)
     head->freePageOffset = PAGE_SIZE * page_num;
 
     register_dirty_page(m_page, make_dirty(0, 8));
-    register_dirty_page(m_head, make_dirty(0, 24));
+    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
     
     return true;
 }

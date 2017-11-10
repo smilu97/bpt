@@ -219,7 +219,7 @@ void delete_cache();
 MemoryPage * pop_unpinned_lru();
 MemoryPage * get_page(int table_id, llu page_num);
 MemoryPage * new_page(int table_id);
-int free_page(int table_id, llu idx);
+int free_page(int table_id, llu page_num);
 int commit_page(int table_id, Page * p_page, llu page_num, llu size, llu offset);
 int load_page(int table_id, Page * p_page, llu page_num, llu size);
 int close_file();

@@ -39,7 +39,10 @@ int insert_into_new_root(MemoryPage * left, llu key, MemoryPage * right);
 void print_all();
 
 int delete(int table_id, llu key);
-int merge_leaf(MemoryPage * m_leaf);
+int delete_leaf_entry(MemoryPage * m_leaf, llu key);
+
+int coalesce_leaf(MemoryPage * m_left, MemoryPage * m_right);
+int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right);
 
 extern MemoryPage * page_buf[MEMPAGE_MOD];
 extern MemoryPage * mempages;

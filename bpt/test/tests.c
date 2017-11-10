@@ -7,7 +7,8 @@
 
 int main(int argc, char ** argv)
 {
-    if(test_page() && test_insert_sequence() && test_insert_random() && test_delete()) {
+    if(test_page() && test_insert_sequence() && test_insert_random() && test_delete() && test_table()
+    && test_delete_2()) {
         puts("SUCCESS ^ ^");
     } else {
         puts("FAIL - -");

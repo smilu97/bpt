@@ -59,3 +59,32 @@ int test_delete()
     shutdown_db();
     return true;
 }
+
+int test_delete_2()
+{
+    unlink("db/test_delete_2.db");
+
+    init_db(10000);
+    int fd = open_table("db/test_delete_2.db");
+
+    char buf[100];
+
+    for(int i=0; i<ITEM_LIMIT; ++i) {
+        sprintf(buf, test_value_format, i);
+        if(insert(fd, i, buf)) {
+            perror("Failed to insert in test_delete");
+            return false;
+        }
+    }
+    
+    for(int i=0; i<ITEM_LIMIT; i += 1) {
+        if(delete(fd, i)) {
+            perror("Failed to delete in test_delete");
+            return false;
+        }
+    }
+
+    close_table(fd);
+    shutdown_db();
+    return true;
+}
