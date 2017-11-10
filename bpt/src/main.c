@@ -14,43 +14,44 @@ int main( int argc, char ** argv ) {
 
     char instruction;
     char value_buf[1000];
-    int input;
+    llu input, range2;
+    int verbose_output = 0;
 
     // printf("> ");
     while (scanf("%c", &instruction) != EOF) {
         switch (instruction) {
         case 'd':
-            scanf("%d", &input);
+            scanf("%llu", &input);
             delete(fd, input);
             print_tree(fd);
             break;
         case 'i':
-            scanf("%d", &input);
+            scanf("%llu", &input);
             scanf("%s", value_buf);
             insert(fd, input, value_buf);
-            // print_tree();
+            if(verbose_output) print_tree(fd);
             break;
         case 'f':
         case 'p':
-            scanf("%d", &input);
+            scanf("%llu", &input);
             char * res = find(fd, input);
             if(res) {
-                printf("Key: %d, Value: %s\n", input, res);
+                printf("Key: %llu, Value: %s\n", input, res);
             } else {
                 printf("Couldn't find\n");
             }
             break;
         case 'r':
-            // scanf("%d %d", &input, &range2);
-            // if (input > range2) {
-            //     int tmp = range2;
-            //     range2 = input;
-            //     input = tmp;
-            // }
-            // find_and_print_range(root, input, range2, instruction == 'p');
+            scanf("%llu %llu", &input, &range2);
+            if (input > range2) {
+                int tmp = range2;
+                range2 = input;
+                input = tmp;
+            }
+            find_and_print_range(fd, input, range2);
             break;
         case 'l':
-            // print_leaves(root);
+            print_all(fd);
             break;
         case 'o':
             scanf("%s", value_buf);
@@ -69,11 +70,10 @@ int main( int argc, char ** argv ) {
             print_tree(fd);
             break;
         case 'v':
-            // verbose_output = !verbose_output;
+            verbose_output = !verbose_output;
             break;
         case 'x':
-            // if (root)
-            //     root = destroy_tree(root);
+            destroy_tree(fd);
             print_tree(fd);
             break;
         default:

@@ -18,14 +18,18 @@
 #define INTERNAL_MERGE_TOLERANCE (INTERNAL_KEYVALUE_NUM / 2)
 
 void print_tree(int table_id);
+void print_all();
 
 MemoryPage * get_root();
 int height(MemoryPage * root);
+void find_and_print_range(int table_id, llu left, llu right);
 MemoryPage * find_leaf(int table_id, llu key);
 MemoryPage * find_first_leaf();
 MemoryPage * find_left(MemoryPage * m_leaf);
 char * find_from_leaf(MemoryPage * m_leaf, llu key);
 char * find(int table_id, llu key);
+
+int destroy_tree(int table_id);
 
 int insert(int table_id, llu key, const char * value);
 int insert_into_leaf(MemoryPage * m_leaf, llu key, const char * value);
@@ -35,8 +39,6 @@ llu get_left_idx(InternalPage * parent, llu leftOffset);
 int insert_into_internal(MemoryPage * m_internal, llu left_idx, llu new_key, MemoryPage * right);
 int insert_into_internal_after_splitting(MemoryPage * m_internal, llu left_idx, llu new_key, MemoryPage * right);
 int insert_into_new_root(MemoryPage * left, llu key, MemoryPage * right);
-
-void print_all();
 
 int delete(int table_id, llu key);
 int delete_leaf_entry(MemoryPage * m_leaf, llu key);

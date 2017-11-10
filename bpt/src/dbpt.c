@@ -70,6 +70,31 @@ int height(MemoryPage * root)
     return h;
 }
 
+void find_and_print_range(int table_id, llu left, llu right)
+{
+    MemoryPage * m_cur = find_leaf(table_id, left);
+    LeafPage * cur = (LeafPage*)(m_cur->p_page);
+
+    int end = 0;
+    while(1) {
+        int len = cur->header.numOfKeys;
+        for(int idx = 0; idx < len; ++idx) {
+            llu key = cur->keyValue[idx].key;
+            if(key < left) continue;
+            if(key > right) {
+                end = 1;
+                break;
+            }
+            printf("(%llu, %s) ", key, cur->keyValue[idx].value);
+        }
+        if(end) break;
+        if(cur->header.rightOffset == 0) break;
+        m_cur = get_page(table_id, cur->header.rightOffset / PAGE_SIZE);
+        cur = (LeafPage*)(m_cur->p_page);
+    }
+    puts("");
+}
+
 MemoryPage * find_leaf(int table_id, llu key)
 {
     MemoryPage * m_root = get_root(table_id);
@@ -168,6 +193,29 @@ char * find(int table_id, llu key)
     if(idx == -1) return NULL;
     free_pinned();
     return ((LeafPage*)(m_leaf->p_page))->keyValue[idx].value;
+}
+
+int destroy_tree(int table_id)
+{
+    MemoryPage * m_head = get_header_page(table_id);
+    HeaderPage * head = (HeaderPage*)(m_head->p_page);
+
+    head->numOfPages = 2;
+    head->rootPageOffset = PAGE_SIZE;
+    head->freePageOffset = 0;
+
+    MemoryPage * m_root = get_page(table_id, 1);
+    LeafPage * root = (LeafPage*)(m_root->p_page);
+
+    root->header.isLeaf = 1;
+    root->header.numOfKeys = 0;
+    root->header.parentOffset = 0;
+    root->header.rightOffset = 0;
+    
+    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
+    register_dirty_page(m_root, make_dirty(0, PAGE_HEADER_SIZE));
+
+    return true;
 }
 
 /*
