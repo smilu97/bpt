@@ -11,25 +11,33 @@ Author: smilu97
 ## 제공되는 함수
 
 ```C
-int open_db(const char * pathname);
+int init_db(int buf_num);
 ```
 
-db 파일을 열어서 초기화합니다. 나머지 세 함수를 쓰기 전에 반드시 호출되어야 합니다
+메모리 버퍼 페이지를 제공하기 위해, DB를 사용하기전 반드시 호출해야 합니다. 첫 번째 인자로, 예약할 페이지 개수를 지정합니다. 많으면 많을수록 많은 메모리 공간을 소비하며, 동시에 디스크와의 IO가 줄어듭니다.
 
 ```C
-char * find(unsigned long long key);
+int open_table(const char * pathname);
 ```
 
-key값을 이용해서 DB에 존재하는 value를 찾아 리턴합니다. 반환되는 `char*` 포인터는 내부 로직에서 malloc되어 힙 영역을 가리키고 있으므로, 내부 로직에서 메모리가 해제될 수 있으므로, 지속적으로 사용하는 것은 위험합니다.
+파일을 열어서 사용할 수 있도록 만듭니다.
+
+성공적으로 파일이 열렸을 경우 파일의 디스크립터를 리턴합니다. 만약, 파일을 열어서 확인하는 데 실패했을 경우 0을 리턴합니다.
 
 ```C
-int insert(unsigned long long key, const char * value);
+char * find(int table_id, unsigned long long key);
+```
+
+key값을 이용해서 테이블에 존재하는 value를 찾아 리턴합니다. 없을경우 NULL을 리턴합니다.
+
+```C
+int insert(int table_id, unsigned long long key, const char * value);
 ```
 
 key값에 해당하는 곳에 value를 대입합니다.
 
 ```C
-int delete(unsigned long long key);
+int delete(int table_id, unsigned long long key);
 ```
 
 key값에 해당하는 곳에 있던 record를 삭제합니다.
@@ -50,12 +58,17 @@ key값에 해당하는 곳에 있던 record를 삭제합니다.
 
 ### Member
 
-* Dirty dirty
+* Dirty * dirty
   * dirty는 {int, int} 형태로 이루어진 구조체이며, 현재 디스크와 다를 수 있는 영역을 가리키고 있습니다.
+  * 여러 영역을 가리키기 위해 다음 dirty를 가리키고 있는 단방향 리스트 형태를 띄고 있습니다.
+  * 연결되어 있는 Dirty들 끼리는 서로 중복되지 않게 관리됩니다.
 * cache_idx
   * Serialized된 MemoryPage배열에서 자신이 몇 번째인지 가리킵니다.
 * page_num
   * 자신이 가리키고 있는 페이지가 몇 번인지 저장합니다.
+* pin_count
+  * 현재 메모리 페이지가 알고리즘에 의해 사용되고 있는지 표시합니다.
+  * 이 값이 1 이상일 경우, LRUNode리스트의 앞에 있더라도 메모리에서 해제되지 않도록 보호받습니다.
 * p_lru
   * 자신이 속한 `LRUNode`를 가리키고 있습니다. `MemoryPage`와 `LRUNode`는, 사용중일 때에 한하여, 서로를 OnebyOne으로 가리킵니다.
 * p_page
@@ -64,19 +77,3 @@ key값에 해당하는 곳에 있던 record를 삭제합니다.
   * `MemoryPage`가 사용중일 경우, `next`는 자신의 page_num을 해슁한 결과가 같은 다른 `MemoryPage`를 가리킵니다. 해슁 결과가 같은 `MemoryPage`간의 관계를 필자는 `Hash Friend`라고 부르고 있으며, 이 `Hash Friend`들은 모두 `next`포인터를 통하여 하나의 같은 단방향 링크드 리스트로 연결됩니다.
   * 사용중이지 않을 경우, 즉 이 `MemoryPage`가 Free상태일 경우, 다른 Free `MemoryPage`를 가리킵니다. 마찬가지로 Free상태인 `MemoryPage`들은 모두 같은 단방향 링크드 리스트로 연결되어 있으며, `"page.h"`에 정의되어있는 `MemoryPage * free_mempage` 글로벌 변수가 그 HEAD를 가리키고 있습니다.
 
-
-
-## Dirty queue
-
-Dirty한(디스크와 내용이 맞지 않는) 페이지들을 담고 있습니다.
-
-Linear time에 중복을 검사해서 element들을 unique하게 관리합니다.
-
-```C
-Dirty make_dirty(int left, int right);  // Dirty한 영역의 범위를 가리키는 구조체를 생성합니다
-void update_dirty(Dirty * dest, Dirty src);  // Dirty구조체를 더합니다
-int register_dirty_page(MemoryPage * m_page, Dirty dirty);  // Dirty page를 queue에 넣습니다.
-int commit_dirty_pages();  // Dirty페이지들을 모두 청소합니다(커밋합니다)
-```
-
-위의 함수들을 통해서 관리되고 있습니다.
