@@ -400,6 +400,9 @@ int free_page(int table_id, llu page_num)
 
     register_dirty_page(m_page, make_dirty(0, 8));
     register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
+
+    // TODO: Check it's ok to free mempage
+    // make_free_mempage(m_page->cache_idx);
     
     return true;
 }

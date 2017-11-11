@@ -70,6 +70,10 @@ typedef char BYTE;
  */
 #define HEADER_PAGE_COMMIT_SIZE 24
 
+/*
+ */
+#define PAGE_HEADER_COMMIT_SIZE 24
+
 /* Representing size of container that save
  * the pinned memory pages
  */

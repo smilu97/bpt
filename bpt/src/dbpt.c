@@ -147,6 +147,23 @@ MemoryPage * find_left(MemoryPage * m_leaf)
     return get_page(table_id, parent->keyValue[leaf_idx - 2].offset / PAGE_SIZE);
 }
 
+MemoryPage * find_right(MemoryPage * m_leaf)
+{
+    int table_id = m_leaf->table_id;
+
+    LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
+
+    if(leaf->header.parentOffset == 0) return NULL;
+
+    MemoryPage * m_parent = get_page(table_id, leaf->header.parentOffset / PAGE_SIZE);
+    InternalPage * parent = (InternalPage*)(m_parent->p_page);
+
+    int leaf_idx = get_left_idx(parent, PAGE_SIZE * m_leaf->page_num);
+
+    if(leaf_idx == parent->header.numOfKeys) return NULL;
+    return get_page(table_id, parent->keyValue[leaf_idx].offset / PAGE_SIZE);
+}
+
 MemoryPage * find_first_leaf(int table_id)
 {
     MemoryPage * m_head = get_header_page(table_id);
@@ -383,7 +400,7 @@ llu get_left_idx(InternalPage * parent, llu leftOffset)
 {
     if(parent->header.oneMoreOffset == leftOffset) return 0;
     llu left_idx = 0;
-    while (left_idx <= parent->header.numOfKeys && 
+    while (left_idx < parent->header.numOfKeys && 
         parent->keyValue[left_idx].offset != leftOffset)
         left_idx++;
     return left_idx + 1;
@@ -476,9 +493,9 @@ int delete_leaf_entry(MemoryPage * m_leaf, llu key)
 {
     int table_id = m_leaf->table_id;
 
-    MemoryPage * m_head = get_header_page(table_id);
-    HeaderPage * head = (HeaderPage*)(m_head->p_page);
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
+
+    if(leaf->header.numOfKeys == 0) return false;
     
     int del_idx = -1;
     int left = 0, right = leaf->header.numOfKeys - 1;
@@ -502,7 +519,7 @@ int delete_leaf_entry(MemoryPage * m_leaf, llu key)
         }
     }
     if(del_idx == -1) {
-        return -1;
+        return false;
     }
 
     int len = leaf->header.numOfKeys, value_len;
@@ -513,7 +530,17 @@ int delete_leaf_entry(MemoryPage * m_leaf, llu key)
     }
     --(leaf->header.numOfKeys);
 
-    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
+    if(del_idx == 0) {
+        MemoryPage * m_parent = get_page(table_id, leaf->header.parentOffset / PAGE_SIZE);
+        InternalPage * parent = (InternalPage*)(m_parent->p_page);
+        int left_idx = get_left_idx(parent, m_leaf->page_num * PAGE_SIZE);
+        if(left_idx > 0) {
+            parent->keyValue[left_idx-1].key = leaf->keyValue[0].key;
+            int commit_left = PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * (left_idx - 1);
+            register_dirty_page(m_parent, make_dirty(commit_left, commit_left + 8));
+        }
+    }
+
     register_dirty_page(m_leaf, make_dirty(0, PAGE_HEADER_SIZE + leaf->header.numOfKeys * sizeof(Record)));
 
     if(leaf->header.parentOffset != 0 && leaf->header.numOfKeys < LEAF_MERGE_TOLERANCE) {
@@ -524,6 +551,9 @@ int delete_leaf_entry(MemoryPage * m_leaf, llu key)
         } else {
             m_friend = find_left(m_leaf);
             friend_is_right = 0;
+        }
+        if(m_friend == NULL) {
+            return true;
         }
         LeafPage * friend = (LeafPage*)(m_friend->p_page);
         if(friend->header.numOfKeys + leaf->header.numOfKeys <= LEAF_SPLIT_TOLERANCE) {
@@ -544,6 +574,8 @@ int delete_leaf_entry(MemoryPage * m_leaf, llu key)
 
 int delete_internal_entry(MemoryPage * m_internal, llu key)
 {
+    int table_id = m_internal->table_id;
+
     InternalPage * internal = (InternalPage*)(m_internal->p_page);
 
     int len = internal->header.numOfKeys;
@@ -569,7 +601,10 @@ int delete_internal_entry(MemoryPage * m_internal, llu key)
         }
     }
     if(pos == -1) {
-        return false;
+        if(internal->keyValue[0].key <= key)
+            return false;
+        pos = 0;
+        internal->header.oneMoreOffset = internal->keyValue[0].offset;
     }
     
     int copy_size = (len - pos - 1) * sizeof(InternalKeyValue);
@@ -581,6 +616,47 @@ int delete_internal_entry(MemoryPage * m_internal, llu key)
 
     register_dirty_page(m_internal, make_dirty(0, PAGE_HEADER_SIZE));
     register_dirty_page(m_internal, make_dirty(commit_left, commit_right));
+
+    if(internal->header.parentOffset != 0 && internal->header.numOfKeys < INTERNAL_MERGE_TOLERANCE) {
+        MemoryPage * m_friend;
+        int friend_is_right = 1;
+        m_friend = find_right(m_internal);
+        if(m_friend == NULL) {
+            m_friend = find_left(m_internal);
+            friend_is_right = 0;
+        }
+        if(m_friend == NULL) {
+            return true;
+        }
+        InternalPage * friend = (InternalPage*)(m_friend->p_page);
+        if(friend->header.numOfKeys + internal->header.numOfKeys + 1 <= INTERNAL_SPLIT_TOLERANCE) {
+            if(friend_is_right)
+                return coalesce_internal(m_internal, m_friend);
+            else 
+                return coalesce_internal(m_friend, m_internal);
+        } else {
+            if(friend_is_right)
+                return redistribute_internal(m_internal, m_friend);
+            else
+                return redistribute_internal(m_friend, m_internal);
+        }
+    }
+
+    if(internal->header.parentOffset == 0 && internal->header.numOfKeys == 0) {
+        MemoryPage * m_head = get_header_page(table_id);
+        HeaderPage * head = (HeaderPage*)(m_head->p_page);
+
+        head->rootPageOffset = internal->header.oneMoreOffset;
+        free_page(table_id, m_internal->page_num);
+
+        MemoryPage * m_new_root = get_page(table_id, internal->header.oneMoreOffset / PAGE_SIZE);
+        InternalPage * new_root = (InternalPage*)(m_new_root->p_page);
+
+        new_root->header.parentOffset = 0;
+        
+        register_dirty_page(m_new_root, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
+    }
 
     return true;
 }
@@ -594,16 +670,18 @@ int coalesce_leaf(MemoryPage * m_left, MemoryPage * m_right)
     LeafPage * left = (LeafPage*)(m_left->p_page);
     LeafPage * right = (LeafPage*)(m_right->p_page);
 
+    MemoryPage * m_parent = get_page(table_id, right->header.parentOffset / PAGE_SIZE);
+
     int left_len = left->header.numOfKeys;
     int right_len = right->header.numOfKeys;
 
     memcpy(left->keyValue + left_len, right->keyValue, sizeof(Record) * right_len);
     left->header.numOfKeys += right_len;
+    left->header.rightOffset = right->header.rightOffset;
 
-    register_dirty_page(m_left, make_dirty(0, sizeof(LeafPageHeader) + sizeof(Record) * (left_len + right_len)));
+    register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_SIZE));
+    register_dirty_page(m_left, make_dirty(PAGE_HEADER_SIZE + sizeof(Record) * left_len, PAGE_HEADER_SIZE + sizeof(Record) * (left_len + right_len)));
     free_page(table_id, m_right->page_num);
-
-    MemoryPage * m_parent = get_page(table_id, left->header.parentOffset / PAGE_SIZE);
 
     delete_internal_entry(m_parent, right->keyValue[0].key);
 
@@ -616,3 +694,43 @@ int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right)
 {
     return true;
 }
+
+int coalesce_internal(MemoryPage * m_left, MemoryPage * m_right)
+{
+    int table_id = m_left->table_id;
+
+    InternalPage * left = (InternalPage*)(m_left->p_page);
+    InternalPage * right = (InternalPage*)(m_right->p_page);
+
+    MemoryPage * m_parent = get_page(table_id, right->header.parentOffset / PAGE_SIZE);
+    InternalPage * parent = (InternalPage*)(m_parent->p_page);
+
+    int left_len = left->header.numOfKeys;
+    int right_len = right->header.numOfKeys;
+
+    int left_idx = get_left_idx(parent, m_left->page_num * PAGE_SIZE);
+    llu mkey = parent->keyValue[left_idx].key;
+
+    memcpy(left->keyValue + (left_len + 1), right->keyValue, sizeof(InternalKeyValue) * right_len);
+    left->keyValue[left_len].offset = right->header.oneMoreOffset;
+    left->keyValue[left_len].key = mkey;
+    left->header.numOfKeys += right_len + 1;
+
+    for(int idx = left_len; idx < left->header.numOfKeys; ++idx) {
+        set_parent(table_id, left->keyValue[idx].offset / PAGE_SIZE, m_left->page_num);
+    }
+
+    register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_SIZE));
+    register_dirty_page(m_left, make_dirty(PAGE_HEADER_SIZE + sizeof(Record) * left_len, PAGE_HEADER_SIZE + sizeof(Record) * (left_len + right_len + 1)));
+    free_page(table_id, m_right->page_num);
+
+    delete_internal_entry(m_parent, mkey);
+
+    return true;
+}
+
+int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right)
+{
+    return true;
+}
+
