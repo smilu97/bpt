@@ -795,13 +795,13 @@ int coalesce_internal(MemoryPage * m_left, MemoryPage * m_right)
 {
     int table_id = m_left->table_id;
 
-    InternalPage * left = (InternalPage*)(m_left->p_page);
+    InternalPage * left  = (InternalPage*)(m_left->p_page);
     InternalPage * right = (InternalPage*)(m_right->p_page);
 
     MemoryPage * m_parent = get_page(table_id, right->header.parentOffset / PAGE_SIZE);
     InternalPage * parent = (InternalPage*)(m_parent->p_page);
 
-    int left_len = left->header.numOfKeys;
+    int left_len  = left ->header.numOfKeys;
     int right_len = right->header.numOfKeys;
 
     // Find the mid key between two offsets that pointing left and right pages.
