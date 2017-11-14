@@ -5,6 +5,11 @@
 
 #include "page.h"
 
+/* Save all number of opened tables.
+ */
+int opened_tables[10000];
+int opened_tables_num;
+
 /* page_buf[i] is head of hash chain, it will be used to point memory page
  * that has hash(page_num) == i
  * 
@@ -88,6 +93,16 @@ void describe_internal(MemoryPage * m_internal)
     } puts("");
 }
 
+/* Check if the two file descriptor is reffering same file
+ */
+int is_same_file(int fd1, int fd2)
+{
+    struct stat stat1, stat2;
+    if(fstat(fd1, &stat1) < 0) return -1;
+    if(fstat(fd2, &stat2) < 0) return -1;
+    return (stat1.st_dev == stat2.st_dev) && (stat1.st_ino == stat2.st_ino);
+}
+
 /* Initialize db to prepare memory cache
  * make global variables usable state
  */
@@ -113,6 +128,7 @@ int init_db(int buf_num)
     free_mempage = 0;
     last_mempage_idx = 0;
     pinned_page_num = 0;
+    opened_tables_num = 0;
     LRUInit();
 
     return 0;
@@ -132,6 +148,12 @@ int open_table(const char * filepath)
         if((fd = open(filepath, FILE_OPEN_SETTING, 0644)) == 0) {
             return 0;
         } else {
+            for(int idx = 0; idx < opened_tables_num; ++idx) {
+                if(is_same_file(opened_tables[idx], fd)) {
+                    return opened_tables[idx];
+                }
+            }
+            opened_tables[opened_tables_num++] = fd;
             return fd;
         }
     } else {
@@ -161,6 +183,8 @@ int open_table(const char * filepath)
 
         register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
         register_dirty_page(m_root, make_dirty(0, PAGE_HEADER_SIZE));
+
+        opened_tables[opened_tables_num++] = fd;
 
         return fd;
     }
@@ -198,12 +222,30 @@ int close_table(int table_id)
         }
     }
     close(table_id);
+
+    int table_idx = 0;
+    for(;table_idx < opened_tables_num; ++table_idx) {
+        if(opened_tables[table_idx] == table_id) break;
+    }
+    if(table_idx >= opened_tables_num) {
+        myerror("Something wrong in opened_tables[]");
+    }
+    for(int idx = table_idx; idx < opened_tables_num - 1; ++idx) {
+        opened_tables[idx] = opened_tables[idx + 1];
+    }
+    --opened_tables_num;
     
     return 0;
 }
 
 int shutdown_db(void)
 {
+    /* Close all tables
+     */
+    while(opened_tables_num > 0) {
+        close_table(opened_tables[opened_tables_num - 1]);
+    }
+
     MemoryPage * mem;
     while((mem = (MemoryPage*)LRUPop())) {
         make_free_mempage(mem->cache_idx);

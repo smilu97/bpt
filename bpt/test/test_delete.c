@@ -79,6 +79,8 @@ int test_delete_2()
     
     for(int i=0; i<ITEM_LIMIT; ++i) {
         if(delete(fd, i)) {
+            close_table(fd);
+            shutdown_db();
             myerror("Failed to delete in test_delete");
             return false;
         }

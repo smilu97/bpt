@@ -544,6 +544,36 @@ void print_all(int table_id)
     }
 }
 
+/* Change key in parent on the left of pointer that pointing this page
+ */
+int change_key_in_parent(MemoryPage * m_page, llu key)
+{
+    int table_id = m_page->table_id;
+
+    InternalPage * page = (InternalPage*)(m_page);
+
+    MemoryPage * m_parent = get_page(table_id, page->header.parentOffset / PAGE_SIZE);
+    InternalPage * parent = (InternalPage*)(m_parent->p_page);
+    int pointer_idx = get_left_idx(parent, m_page->page_num * PAGE_SIZE);
+    while(pointer_idx == 0 && parent->header.parentOffset != 0) {
+        int below_offset = m_parent->page_num * PAGE_SIZE;
+        m_parent = get_page(table_id, parent->header.parentOffset / PAGE_SIZE);
+        parent = (InternalPage*)(m_parent->p_page);
+        pointer_idx = get_left_idx(parent, below_offset);
+    }
+
+    if(pointer_idx == 0 && parent->header.parentOffset == 0) return false;
+
+    parent->keyValue[pointer_idx - 1].key = key;
+
+    register_dirty_page(m_parent, make_dirty(
+        PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * (pointer_idx - 1),
+        PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * pointer_idx
+    ));
+
+    return true;
+}
+
 /* Delete record that having the key
  */
 int delete(int table_id, llu key)
@@ -607,16 +637,7 @@ int delete_leaf_entry(MemoryPage * m_leaf, llu key)
     /* If the deleted records was first record in leaf page,
      * change the key in parent on the left of offset that pointing this leaf page
      */
-    if(del_idx == 0) {
-        MemoryPage * m_parent = get_page(table_id, leaf->header.parentOffset / PAGE_SIZE);
-        InternalPage * parent = (InternalPage*)(m_parent->p_page);
-        int left_idx = get_left_idx(parent, m_leaf->page_num * PAGE_SIZE);
-        if(left_idx > 0) {
-            parent->keyValue[left_idx-1].key = leaf->keyValue[0].key;
-            int commit_left = PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * (left_idx - 1);
-            register_dirty_page(m_parent, make_dirty(commit_left, commit_left + 8));
-        }
-    }
+    change_key_in_parent(m_leaf, leaf->keyValue[0].key);
 
     register_dirty_page(m_leaf, make_dirty(0, PAGE_HEADER_SIZE + leaf->header.numOfKeys * sizeof(Record)));
 
@@ -696,7 +717,7 @@ int delete_internal_entry(MemoryPage * m_internal, llu key)
         internal->header.oneMoreOffset = internal->keyValue[0].offset;
     }
     
-    // Shit key-offset pairs
+    // Shift key-offset pairs
     int copy_size = (len - pos - 1) * sizeof(InternalKeyValue);
     memcpy(internal->keyValue + pos, internal->keyValue + (pos + 1), copy_size);
     --(internal->header.numOfKeys);
@@ -788,6 +809,105 @@ int coalesce_leaf(MemoryPage * m_left, MemoryPage * m_right)
  */
 int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right)
 {
+    // Check in which table it is
+    int table_id = m_left->table_id;
+
+    // Get two pages
+    LeafPage * left  = (LeafPage*)(m_left ->p_page);
+    LeafPage * right = (LeafPage*)(m_right->p_page);
+
+    // Save length of two pages
+    int len_left  = left ->header.numOfKeys;
+    int len_right = right->header.numOfKeys; 
+
+    int diff;  // The difference of the number of records between two pages
+    int len_borrow;  // The number of records to borrow
+
+    if(len_left > len_right) {
+        diff = len_left - len_right;
+        len_borrow = (diff >> 1);
+
+        if(len_right + len_borrow > LEAF_SPLIT_TOLERANCE || len_borrow == 0) return true;
+
+        // Shift records in right
+        for(int idx = len_right - 1; idx >= 0; --idx) {
+            memcpy(
+                right->keyValue + (idx + len_borrow),
+                right->keyValue + idx,
+                sizeof(Record)
+            );
+        }
+        // Copy records from left to right
+        for(int idx = 0; idx < len_borrow; ++idx) {
+            memcpy(
+                right->keyValue + idx,
+                left->keyValue + (len_left - len_borrow + idx),
+                sizeof(Record)
+            );
+        }
+
+        // Adjust number of keys in page
+        left ->header.numOfKeys -= len_borrow;
+        right->header.numOfKeys += len_borrow;
+
+        // Calculate dirty area and register it
+        register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(
+            m_right,
+            make_dirty(
+                PAGE_HEADER_SIZE,
+                PAGE_HEADER_SIZE + sizeof(Record) * right->header.numOfKeys
+            )
+        );
+    } else if(len_left < len_right) {
+        diff = len_right - len_left;
+        len_borrow = (diff >> 1);
+
+        if(len_left + len_borrow > LEAF_SPLIT_TOLERANCE || len_borrow == 0) return true;
+
+        // Copy records from right to left
+        for(int idx = 0; idx < len_borrow; ++idx) {
+            memcpy(
+                left->keyValue + (len_left + idx),
+                right->keyValue + idx,
+                sizeof(Record)
+            );
+        }
+        // Shift records in left
+        for(int idx = 0; idx < len_borrow; ++idx) {
+            memcpy(
+                right->keyValue + idx,
+                right->keyValue + (len_borrow + idx),
+                sizeof(Record)
+            );
+        }
+
+        // Adjust number of keys in page
+        left ->header.numOfKeys += len_borrow;
+        right->header.numOfKeys -= len_borrow;
+
+        // Calculate dirty area and register it
+        register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(
+            m_left,
+            make_dirty(
+                PAGE_HEADER_SIZE + sizeof(Record) * len_left,
+                PAGE_HEADER_SIZE + sizeof(Record) * left->header.numOfKeys
+            )
+        );
+        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(
+            m_right,
+            make_dirty(
+                PAGE_HEADER_SIZE,
+                PAGE_HEADER_SIZE + sizeof(Record) * right->header.numOfKeys
+            )
+        );
+    }
+
+    change_key_in_parent(m_right, right->keyValue[0].key);
+
     return true;
 }
 

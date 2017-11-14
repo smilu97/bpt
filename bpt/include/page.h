@@ -212,6 +212,8 @@ void describe_header(HeaderPage * head);
 void describe_leaf(MemoryPage * m_leaf);
 void describe_internal(MemoryPage * m_internal);
 
+int is_same_file(int fd1, int fd2);
+
 int init_db(int buf_num);
 int open_table(const char * pathname);
 int close_table(int table_id);
