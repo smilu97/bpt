@@ -3,7 +3,7 @@
  *  Author: smilu97, Gim Yeongjin
  */
 
-#include "dbpt.h"
+#include "bpt.h"
 
 /* Print all elements in table
  * This function is using BFS tree search algorithm
