@@ -94,8 +94,8 @@ int shutdown_db();
 
 ### Finding in hash table
 
-* `"hash.c"`에 제공되는 `hash_llu(llu val, llu mod)`함수를 사용해서 찾으려는 페이지의 번호$N$을 해시함수를 적용시켜 $H = \text{hash}(N)$ 를 만듭니다. 2번째 인자인 mod에는 `"page.h"`에 정의되어있는 `MEMPAGE_MOD` 를 넣어줍니다.
+* `"hash.c"`에 제공되는 `hash_llu(llu val, llu mod)`함수를 사용해서 찾으려는 페이지의 번호$`N`$을 해시함수를 적용시켜 $`H = \text{hash}(N)`$ 를 만듭니다. 2번째 인자인 mod에는 `"page.h"`에 정의되어있는 `MEMPAGE_MOD` 를 넣어줍니다.
 * 전역변수로 선언되어 있는 `MemoryPage * page_buf[MEMPAGE_MOD]` 에서 `page_buf[H]`를 가져옵니다.
 * `page_buf[H]`의 Hash Friends중에 찾으려는 페이지를 담고있는 메모리 페이지가 존재합니다.
 
-당연히, 이 Hash Friends중에서 찾으려는 페이지를 찾는 알고리즘은 $O(n)$ 시간이 걸립니다. 하지만, 정의되어 있는 MEMPAGE_MOD 상수를 높이면 높일수록, Hash table의 가용성이 줄어드는 대신, 더 빠른 시간에 `MemoryPage` 를 찾을 수 있습니다.
+당연히, 이 Hash Friends중에서 찾으려는 페이지를 찾는 알고리즘은 $`O(n)`$ 시간이 걸립니다. 하지만, 정의되어 있는 MEMPAGE_MOD 상수를 높이면 높일수록, Hash table의 가용성이 줄어드는 대신, 더 빠른 시간에 `MemoryPage` 를 찾을 수 있습니다.
