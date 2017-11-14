@@ -44,7 +44,7 @@ int insert_into_new_root(MemoryPage * left, llu key, MemoryPage * right);
 int delete(int table_id, llu key);
 int delete_leaf_entry(MemoryPage * m_leaf, llu key);
 
-int change_key_in_parent(MemoryPage * m_page, llu key);
+llu change_key_in_parent(MemoryPage * m_page, llu key);
 int coalesce_leaf(MemoryPage * m_left, MemoryPage * m_right);
 int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right);
 int coalesce_internal(MemoryPage * m_left, MemoryPage * m_right);

@@ -13,6 +13,7 @@ int main(int argc, char ** argv)
         test_insert_random() &&
         test_delete_2() &&
         test_delete() &&
+        test_delete_random() &&
         test_table()
     ) {
         puts("SUCCESS ^ ^");

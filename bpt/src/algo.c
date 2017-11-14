@@ -25,6 +25,17 @@ long long min_lld(long long a, long long b)
     return b;
 }
 
+void shuffle_d(int * arr, int len)
+{
+    for(int i=0; i<len; ++i) {
+        int j = rand() % len;
+        
+        int tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+    }
+}
+
 void myerror(const char * str)
 {
     fprintf(stderr, ANSI_COLOR_RED "%s\n" ANSI_COLOR_RESET, str);

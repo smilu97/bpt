@@ -546,7 +546,7 @@ void print_all(int table_id)
 
 /* Change key in parent on the left of pointer that pointing this page
  */
-int change_key_in_parent(MemoryPage * m_page, llu key)
+llu change_key_in_parent(MemoryPage * m_page, llu key)
 {
     int table_id = m_page->table_id;
 
@@ -562,8 +562,9 @@ int change_key_in_parent(MemoryPage * m_page, llu key)
         pointer_idx = get_left_idx(parent, below_offset);
     }
 
-    if(pointer_idx == 0 && parent->header.parentOffset == 0) return false;
+    if(pointer_idx == 0 && parent->header.parentOffset == 0) return -1;
 
+    llu ret = parent->keyValue[pointer_idx - 1].key;
     parent->keyValue[pointer_idx - 1].key = key;
 
     register_dirty_page(m_parent, make_dirty(
@@ -571,7 +572,7 @@ int change_key_in_parent(MemoryPage * m_page, llu key)
         PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * pointer_idx
     ));
 
-    return true;
+    return ret;
 }
 
 /* Delete record that having the key
@@ -860,6 +861,8 @@ int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right)
                 PAGE_HEADER_SIZE + sizeof(Record) * right->header.numOfKeys
             )
         );
+
+        change_key_in_parent(m_right, right->keyValue[0].key);
     } else if(len_left < len_right) {
         diff = len_right - len_left;
         len_borrow = (diff >> 1);
@@ -904,9 +907,9 @@ int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right)
                 PAGE_HEADER_SIZE + sizeof(Record) * right->header.numOfKeys
             )
         );
-    }
 
-    if(len_left != len_right) change_key_in_parent(m_right, right->keyValue[0].key);
+        change_key_in_parent(m_right, right->keyValue[0].key);
+    }
 
     return true;
 }
@@ -951,6 +954,113 @@ int coalesce_internal(MemoryPage * m_left, MemoryPage * m_right)
 
 int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right)
 {
+    // Check in which table it is
+    int table_id = m_left->table_id;
+
+    // Get two pages
+    InternalPage * left  = (InternalPage*)(m_left ->p_page);
+    InternalPage * right = (InternalPage*)(m_right->p_page);
+
+    // Save length of two pages
+    int len_left  = left ->header.numOfKeys;
+    int len_right = right->header.numOfKeys; 
+
+    int diff;  // The difference of the number of records between two pages
+    int len_borrow;  // The number of records to borrow
+
+    if(len_left > len_right) {
+        diff = len_left - len_right;
+        len_borrow = (diff >> 1);
+
+        if(len_right + len_borrow > INTERNAL_SPLIT_TOLERANCE || len_borrow <= 1) return true;
+
+        // Shift records in right
+        for(int idx = len_right - 1; idx >= 0; --idx) {
+            memcpy(
+                right->keyValue + (idx + len_borrow),
+                right->keyValue + idx,
+                sizeof(InternalKeyValue)
+            );
+        }
+        right->keyValue[len_borrow-1].offset = right->header.oneMoreOffset;
+        right->keyValue[len_borrow-1].key = change_key_in_parent(m_right, left->keyValue[len_left-len_borrow].key);
+        right->header.oneMoreOffset = left->keyValue[len_left - len_borrow].offset;
+        set_parent(table_id, right->header.oneMoreOffset / PAGE_SIZE, m_right->page_num);
+        // Copy records from left to right
+        for(int idx = 0; idx < len_borrow - 1; ++idx) {
+            memcpy(
+                right->keyValue + idx,
+                left ->keyValue + (len_left - len_borrow + idx + 1),
+                sizeof(InternalKeyValue)
+            );
+            set_parent(table_id, right->keyValue[idx].offset / PAGE_SIZE, m_right->page_num);
+        }
+
+        // Adjust number of keys in page
+        left ->header.numOfKeys -= len_borrow;
+        right->header.numOfKeys += len_borrow;
+
+        // Calculate dirty area and register it
+        register_dirty_page(m_left,  make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(
+            m_right,
+            make_dirty(
+                PAGE_HEADER_SIZE - 8,
+                PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * right->header.numOfKeys
+            )
+        );
+    } else if(len_left < len_right) {
+        diff = len_right - len_left;
+        len_borrow = (diff >> 1);
+
+        if(len_left + len_borrow > INTERNAL_SPLIT_TOLERANCE || len_borrow <= 1) return true;
+
+        // Copy records from right to left
+        left->keyValue[len_left].key = change_key_in_parent(m_right, right->keyValue[len_borrow-1].key);
+        left->keyValue[len_left].offset = right->header.oneMoreOffset;
+        set_parent(table_id, right->header.oneMoreOffset / PAGE_SIZE, m_left->page_num);
+        for(int idx = 0; idx < len_borrow-1; ++idx) {
+            memcpy(
+                left ->keyValue + (len_left + idx + 1),
+                right->keyValue + idx,
+                sizeof(InternalKeyValue)
+            );
+            set_parent(table_id, right->keyValue[idx].offset / PAGE_SIZE, m_left->page_num);
+        }
+        // Shift records in right
+        right->header.oneMoreOffset = right->keyValue[len_borrow-1].offset;
+        for(int idx = len_borrow; idx < len_right; ++idx) {
+            memcpy(
+                right->keyValue + (idx - len_borrow),
+                right->keyValue + idx,
+                sizeof(InternalKeyValue)
+            );
+        }
+
+        // Adjust number of keys in page
+        left ->header.numOfKeys += len_borrow;
+        right->header.numOfKeys -= len_borrow;
+
+        // Calculate dirty area and register it
+        register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(
+            m_left,
+            make_dirty(
+                PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * len_left,
+                PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * left->header.numOfKeys
+            )
+        );
+        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(
+            m_right,
+            make_dirty(
+                PAGE_HEADER_SIZE - 8,
+                PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * right->header.numOfKeys
+            )
+        );
+    }
+
     return true;
 }
 

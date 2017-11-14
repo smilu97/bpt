@@ -17,6 +17,7 @@ extern unsigned long long pinned_page_num;
 
 int test_insert_sequence()
 {
+    clock_t start, end, total;
     unlink("db/test_insert_seq.db");
     
     init_db(TEST_BUF);
@@ -25,13 +26,14 @@ int test_insert_sequence()
     char buf[200];
     
     printf("Insert sequence start(%d)\n", INSERT_NUM);
-    int start = time(0);
+    start = clock();
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", i);
         insert(fd, i, buf);
     }
-    int end = time(0); 
-    printf("insert time: %d\n", end - start);
+    end = clock(); 
+    total = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("insert time: %lu\n", total);
 
     int success = 1;
     for(int i=0; i<INSERT_NUM; ++i) {
@@ -56,6 +58,7 @@ int test_insert_sequence()
 
 int test_insert_random()
 {
+    clock_t start, end, total;
     unlink("db/test_insert_random.db");
 
     init_db(TEST_BUF);
@@ -63,18 +66,21 @@ int test_insert_random()
 
     char buf[200];
     int indices[INSERT_NUM];
-
+    for(int i=0; i<INSERT_NUM; ++i) indices[i] = i;
     srand((unsigned int)time(0));
+    shuffle_d(indices, INSERT_NUM);
+
     printf("Insert random start(%d)\n", INSERT_NUM);
 
-    int start = time(0);
+    start = clock();
     for(int i=0; i<INSERT_NUM; ++i) {
-        indices[i] = (int)(rand() % 0x7FFFFF);
         sprintf(buf, "I'm a record %d", indices[i]);
         insert(fd, indices[i], buf);
     }
-    int end = time(0);
-    printf("insert time: %d\n", end - start);
+    end = clock();
+    total = (double)(end - start) / CLOCKS_PER_SEC;
+
+    printf("insert time: %lu\n", total);
 
     int success = 1;
     for(int i=0; i<INSERT_NUM; ++i) {
