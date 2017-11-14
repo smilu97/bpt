@@ -56,10 +56,6 @@ int shutdown_db();
 
 성공시 0, 실패시 0이 아닌 값을 리턴합니다.
 
-##메모리 캐싱
-
-## 메모리 캐싱
-
 ## 메모리 캐싱
 
 이 프로젝트에서는 [LRU알고리즘](https://en.wikipedia.org/wiki/Cache_replacement_policies#Least_Recently_Used_.28LRU.29)을 사용하고 있습니다
