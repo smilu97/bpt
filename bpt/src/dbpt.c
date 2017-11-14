@@ -550,7 +550,7 @@ int change_key_in_parent(MemoryPage * m_page, llu key)
 {
     int table_id = m_page->table_id;
 
-    InternalPage * page = (InternalPage*)(m_page);
+    InternalPage * page = (InternalPage*)(m_page->p_page);
 
     MemoryPage * m_parent = get_page(table_id, page->header.parentOffset / PAGE_SIZE);
     InternalPage * parent = (InternalPage*)(m_parent->p_page);
@@ -841,7 +841,7 @@ int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right)
         for(int idx = 0; idx < len_borrow; ++idx) {
             memcpy(
                 right->keyValue + idx,
-                left->keyValue + (len_left - len_borrow + idx),
+                left ->keyValue + (len_left - len_borrow + idx),
                 sizeof(Record)
             );
         }
@@ -869,16 +869,16 @@ int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right)
         // Copy records from right to left
         for(int idx = 0; idx < len_borrow; ++idx) {
             memcpy(
-                left->keyValue + (len_left + idx),
+                left ->keyValue + (len_left + idx),
                 right->keyValue + idx,
                 sizeof(Record)
             );
         }
-        // Shift records in left
-        for(int idx = 0; idx < len_borrow; ++idx) {
+        // Shift records in right
+        for(int idx = len_borrow; idx < len_right; ++idx) {
             memcpy(
+                right->keyValue + (idx - len_borrow),
                 right->keyValue + idx,
-                right->keyValue + (len_borrow + idx),
                 sizeof(Record)
             );
         }
@@ -906,7 +906,7 @@ int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right)
         );
     }
 
-    change_key_in_parent(m_right, right->keyValue[0].key);
+    if(len_left != len_right) change_key_in_parent(m_right, right->keyValue[0].key);
 
     return true;
 }

@@ -82,6 +82,7 @@ int test_delete_2()
             close_table(fd);
             shutdown_db();
             myerror("Failed to delete in test_delete");
+            printf("Fail in %d\n", i);
             return false;
         }
     }
