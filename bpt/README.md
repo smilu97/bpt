@@ -6,4 +6,4 @@ Author: smilu97
 
 대부분의 구현은 `docs`폴더 안의 pdf 과제명세서가 지시하는 대로 되어있습니다. 이 이외의 특별한 구현방식등은 최대한 README.md 혹은 github, gitlab의 wiki 페이지에 서술하겠습니다.
 
-자세한 설명은 [docs폴더](docs/index.md)를 확인해주세요.
+자세한 설명은 [docs폴더](bpt/docs/index.md)를 확인해주세요.
