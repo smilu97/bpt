@@ -741,6 +741,11 @@ int delete_internal_entry(MemoryPage * m_internal, llu key)
             pos = right;
         }
     }
+    if(pos == -1 && key < internal->keyValue[0].key) {
+        change_key_in_parent(m_internal, internal->keyValue[0].key);
+        internal->header.oneMoreOffset = internal->keyValue[0].offset;
+        pos = 0;
+    }
     if(pos == -1) {
         return false;
     }
@@ -824,11 +829,16 @@ int coalesce_leaf(MemoryPage * m_left, MemoryPage * m_right)
     left->header.rightOffset = right->header.rightOffset;
 
     register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_SIZE));
-    register_dirty_page(m_left, make_dirty(PAGE_HEADER_SIZE + sizeof(Record) * left_len, PAGE_HEADER_SIZE + sizeof(Record) * (left_len + right_len)));
+    register_dirty_page(
+        m_left,
+        make_dirty(
+            PAGE_HEADER_SIZE + sizeof(Record) * left_len,
+            PAGE_HEADER_SIZE + sizeof(Record) * (left_len + right_len)
+        )
+    );
     free_page(table_id, m_right->page_num);
 
     // Delete the pair pointing right
-    // TODO: Hen!
     delete_internal_entry(m_parent, right->keyValue[0].key);
 
     return true;
