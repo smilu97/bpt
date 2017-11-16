@@ -243,17 +243,20 @@ int find_idx_from_leaf(MemoryPage * m_leaf, llu key)
  */
 char * find(int table_id, llu key)
 {
+    char * ret;
+
     // Find leaf page that can be having the key
     MemoryPage * m_leaf = find_leaf(table_id, key);
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
 
     // Find record in the leaf page
     int idx = find_idx_from_leaf(m_leaf, key);
-    if(idx == -1) return NULL;  // There isn't....
+    if(idx == -1) ret = NULL;
+    else ret = leaf->keyValue[idx].value;
 
     free_pinned();  // Un-pin all memory pages
 
-    return leaf->keyValue[idx].value;
+    return ret;
 }
 
 /* Delete all records
@@ -544,6 +547,27 @@ void print_all(int table_id)
     }
 }
 
+MemoryPage * find_internal_parent(MemoryPage * m_page)
+{
+    int table_id = m_page->table_id;
+
+    InternalPage * page = (InternalPage*)(m_page->p_page);
+
+    MemoryPage * m_parent = get_page(table_id, page->header.parentOffset / PAGE_SIZE);
+    InternalPage * parent = (InternalPage*)(m_parent->p_page);
+    int pointer_idx = get_left_idx(parent, m_page->page_num * PAGE_SIZE);
+    while(pointer_idx == 0 && parent->header.parentOffset != 0) {
+        int below_offset = m_parent->page_num * PAGE_SIZE;
+        m_parent = get_page(table_id, parent->header.parentOffset / PAGE_SIZE);
+        parent = (InternalPage*)(m_parent->p_page);
+        pointer_idx = get_left_idx(parent, below_offset);
+    }
+
+    if(pointer_idx == 0 && parent->header.parentOffset == 0) return NULL;
+
+    return m_parent;
+}
+
 /* Change key in parent on the left of pointer that pointing this page
  */
 llu change_key_in_parent(MemoryPage * m_page, llu key)
@@ -638,9 +662,15 @@ int delete_leaf_entry(MemoryPage * m_leaf, llu key)
     /* If the deleted records was first record in leaf page,
      * change the key in parent on the left of offset that pointing this leaf page
      */
-    change_key_in_parent(m_leaf, leaf->keyValue[0].key);
+    if(del_idx == 0) change_key_in_parent(m_leaf, leaf->keyValue[0].key);
 
-    register_dirty_page(m_leaf, make_dirty(0, PAGE_HEADER_SIZE + leaf->header.numOfKeys * sizeof(Record)));
+    register_dirty_page(
+        m_leaf,
+        make_dirty(
+            0,
+            PAGE_HEADER_SIZE + leaf->header.numOfKeys * sizeof(Record)
+        )
+    );
 
     /* Check the number of records in this leaf page
      *
@@ -712,10 +742,7 @@ int delete_internal_entry(MemoryPage * m_internal, llu key)
         }
     }
     if(pos == -1) {
-        if(internal->keyValue[0].key <= key)
-            return false;
-        pos = 0;
-        internal->header.oneMoreOffset = internal->keyValue[0].offset;
+        return false;
     }
     
     // Shift key-offset pairs
@@ -801,6 +828,7 @@ int coalesce_leaf(MemoryPage * m_left, MemoryPage * m_right)
     free_page(table_id, m_right->page_num);
 
     // Delete the pair pointing right
+    // TODO: Hen!
     delete_internal_entry(m_parent, right->keyValue[0].key);
 
     return true;
@@ -969,6 +997,7 @@ int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right)
     int len_borrow;  // The number of records to borrow
 
     if(len_left > len_right) {
+
         diff = len_left - len_right;
         len_borrow = (diff >> 1);
 
@@ -1011,6 +1040,7 @@ int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right)
             )
         );
     } else if(len_left < len_right) {
+
         diff = len_right - len_left;
         len_borrow = (diff >> 1);
 

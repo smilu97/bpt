@@ -115,6 +115,7 @@ int test_delete_random()
         if(delete(fd, indices[i])) {
             shutdown_db();
             myerror("Failed to delete in test_delete_random");
+            printf("Failed in %d, %d\n", i, indices[i]);
             return false;
         }
     }

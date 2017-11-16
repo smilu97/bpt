@@ -573,7 +573,7 @@ int register_dirty_page(MemoryPage * m_page, Dirty * dirty)
 void register_pinned(MemoryPage * mem)
 {
     if(pinned_page_num >= 900) {
-        puts("over 900");
+        puts("over 900 pinned");
     }
     if(mem->pin_count == 0) {
         if(pinned_page_num >= PIN_CONTAINER_SIZE) {
