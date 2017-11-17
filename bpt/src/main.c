@@ -8,6 +8,9 @@ int main( int argc, char ** argv ) {
         printf("syntax: %s <*.db file>\n", argv[0]);
         return 0;
     }
+    
+    setvbuf(stdin, NULL, _IONBF, 0);
+    setvbuf(stdout, NULL, _IONBF, 0);
 
     init_db(100000);
     int fd = open_table(argv[1]);
@@ -23,7 +26,7 @@ int main( int argc, char ** argv ) {
         case 'd':
             scanf("%llu", &input);
             delete(fd, input);
-            print_tree(fd);
+            if(verbose_output) print_tree(fd);
             break;
         case 'i':
             scanf("%llu", &input);
@@ -38,7 +41,7 @@ int main( int argc, char ** argv ) {
             if(res) {
                 printf("Key: %llu, Value: %s\n", input, res);
             } else {
-                printf("Couldn't find\n");
+                printf("Not Exists\n");
             }
             break;
         case 'r':
