@@ -10,14 +10,15 @@ int found_idx = 0;
 int fail[1000];
 int fail_idx = 0;
 
-#define TEST_BUF (100)
-#define INSERT_NUM (10000)
+#define TEST_BUF (10000)
+#define INSERT_NUM (1000000)
 
 extern unsigned long long pinned_page_num;
 
 int test_insert_sequence()
 {
-    clock_t start, end, total;
+    struct timespec begin, end;
+
     unlink("db/test_insert_seq.db");
     
     init_db(TEST_BUF);
@@ -26,14 +27,14 @@ int test_insert_sequence()
     char buf[200];
     
     printf("Insert sequence start(%d)\n", INSERT_NUM);
-    start = clock();
+    clock_gettime(CLOCK_MONOTONIC, &begin);
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", i);
         insert(fd, i, buf);
     }
-    end = clock(); 
-    total = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("insert time: %lu\n", total);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double total = (end.tv_sec - begin.tv_sec) + (end.tv_nsec - begin.tv_nsec) / 1000000000.0f;
+    printf("insert time: %f\n", total);
 
     int success = 1;
     for(int i=0; i<INSERT_NUM; ++i) {
@@ -58,7 +59,7 @@ int test_insert_sequence()
 
 int test_insert_random()
 {
-    clock_t start, end, total;
+    struct timespec begin, end;
     unlink("db/test_insert_random.db");
 
     init_db(TEST_BUF);
@@ -72,15 +73,15 @@ int test_insert_random()
 
     printf("Insert random start(%d)\n", INSERT_NUM);
 
-    start = clock();
+    clock_gettime(CLOCK_MONOTONIC, &begin);
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", indices[i]);
         insert(fd, indices[i], buf);
     }
-    end = clock();
-    total = (double)(end - start) / CLOCKS_PER_SEC;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double total = (end.tv_sec - begin.tv_sec) + (end.tv_nsec - begin.tv_nsec) / 1000000000.0f;
 
-    printf("insert time: %lu\n", total);
+    printf("insert time: %f\n", total);
 
     int success = 1;
     for(int i=0; i<INSERT_NUM; ++i) {
