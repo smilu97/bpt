@@ -4,15 +4,21 @@
 
 int main( int argc, char ** argv ) {
 
-    if (argc < 2) {
-        printf("syntax: %s <*.db file>\n", argv[0]);
+    if (argc < 3) {
+        printf("syntax: %s <*.db file> <buffer num>\n", argv[0]);
         return 0;
     }
     
+    int buf_num = atoi(argv[2]);
+    if(buf_num == 0) {
+        printf("Failed to get the number of buffer\n");
+        return 0;
+    }
+
     setvbuf(stdin, NULL, _IONBF, 0);
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    init_db(100000);
+    init_db(buf_num);
     int fd = open_table(argv[1]);
 
     char instruction;
@@ -57,10 +63,10 @@ int main( int argc, char ** argv ) {
             print_all(fd);
             break;
         case 'o':
+            scanf("%d", &buf_num);
             scanf("%s", value_buf);
-            if(fd) {
-                close_table(fd);
-            }
+            shutdown_db();
+            init_db(buf_num);
             fd = open_table(value_buf);
             break;
         case 'q':

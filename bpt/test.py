@@ -5,7 +5,7 @@
 '''
 
 from subprocess import Popen, PIPE
-import os
+import os, sys
 from random import shuffle
 from timeit import default_timer as timer
 from math import log, floor
@@ -23,7 +23,7 @@ RESULT_FMTS = "Result: %d/%d (%.2f) %.2f secs"
 TARGET_DB_NAME = 'test.db'
 BACKUP_DB_NAME = 'test.db.bak'
 LAST_TEST_DB_NAME = 'last_test.db'
-EXECUTABLE_NAME = 'main test.db'
+EXECUTABLE_NAME = 'main test.db {}'.format(int(sys.argv[1]))
 
 
 SMALL_CASE = 2 ** 10
