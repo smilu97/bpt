@@ -57,9 +57,9 @@ int pinned_page_num;
  */
 void describe_header(HeaderPage * head)
 {
-    printf("freePage:   %llu\n", head->freePageOffset / PAGE_SIZE);
-    printf("numOfPages: %llu\n", head->numOfPages);
-    printf("rootPage:   %llu\n", head->rootPageOffset / PAGE_SIZE);
+    printf("freePage:   %llu\n", head->free_page_offset / PAGE_SIZE);
+    printf("num_pages: %llu\n", head->num_pages);
+    printf("rootPage:   %llu\n", head->root_page_offset / PAGE_SIZE);
 }
 
 /* Describe leaf page
@@ -69,11 +69,11 @@ void describe_leaf(MemoryPage * m_leaf)
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
 
     puts("LeafPage");
-    printf("numOfKeys: %u\n", leaf->header.numOfKeys);
-    printf("parent: %llu\n", leaf->header.parentOffset / PAGE_SIZE);
-    printf("right: %llu\n", leaf->header.rightOffset / PAGE_SIZE);
+    printf("num_keys: %u\n", leaf->header.num_keys);
+    printf("parent: %llu\n", leaf->header.parent_offset / PAGE_SIZE);
+    printf("right: %llu\n", leaf->header.right_offset / PAGE_SIZE);
     printf("keys: ");
-    for(int i=0; i<leaf->header.numOfKeys; ++i) {
+    for(int i=0; i<leaf->header.num_keys; ++i) {
         printf("%llu ", leaf->keyValue[i].key);
     } puts("");
 }
@@ -85,10 +85,10 @@ void describe_internal(MemoryPage * m_internal)
     InternalPage * internal = (InternalPage*)(m_internal->p_page);
 
     puts("InternalPage");
-    printf("numOfKeys: %u\n", internal->header.numOfKeys);
-    printf("parent: %llu\n", internal->header.parentOffset / PAGE_SIZE);
-    printf("contents: (%llu) ", internal->header.oneMoreOffset / PAGE_SIZE);
-    for(int i=0; i<internal->header.numOfKeys; ++i) {
+    printf("num_keys: %u\n", internal->header.num_keys);
+    printf("parent: %llu\n", internal->header.parent_offset / PAGE_SIZE);
+    printf("contents: (%llu) ", internal->header.one_more_offset / PAGE_SIZE);
+    for(int i=0; i<internal->header.num_keys; ++i) {
         printf("%llu (%llu) ", internal->keyValue[i].key, internal->keyValue[i].offset / PAGE_SIZE);
     } puts("");
 }
@@ -168,18 +168,18 @@ int open_table(const char * filepath)
         MemoryPage * m_head = get_page(fd, 0);
         HeaderPage * head = (HeaderPage*)(m_head->p_page);
 
-        head->freePageOffset = 0;
-        head->rootPageOffset = PAGE_SIZE;
-        head->numOfPages = 2;
+        head->free_page_offset = 0;
+        head->root_page_offset = PAGE_SIZE;
+        head->num_pages = 2;
         
         // Make new empty leaf page
         MemoryPage * m_root = get_page(fd, 1);
         LeafPage * root = (LeafPage*)(m_root->p_page);
 
-        root->header.isLeaf = true;
-        root->header.numOfKeys = 0;
-        root->header.parentOffset = 0;
-        root->header.rightOffset = 0;
+        root->header.is_leaf = true;
+        root->header.num_keys = 0;
+        root->header.parent_offset = 0;
+        root->header.right_offset = 0;
 
         register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
         register_dirty_page(m_root, make_dirty(0, PAGE_HEADER_SIZE));
@@ -275,8 +275,8 @@ int commit_page(int table_id, Page * p_page, llu page_num, llu size, llu offset)
         MemoryPage * m_head = get_header_page(table_id);
         HeaderPage * head = (HeaderPage*)m_head->p_page;
     
-        if(page_num >= head->numOfPages) {
-            head->numOfPages = page_num + 1;
+        if(page_num >= head->num_pages) {
+            head->num_pages = page_num + 1;
 
             commit_page(table_id, (Page*)head, 0, HEADER_PAGE_COMMIT_SIZE, 0);
         }
@@ -375,7 +375,7 @@ MemoryPage * get_page(int table_id, llu page_num)
     } else {
         MemoryPage * m_head = get_header_page(table_id);
         HeaderPage * head = (HeaderPage*)m_head->p_page;
-        if(page_num < head->numOfPages) {
+        if(page_num < head->num_pages) {
             load_page(table_id, new_page->p_page, page_num, PAGE_SIZE);
         }
     }
@@ -396,12 +396,12 @@ MemoryPage * new_page(int table_id)
 
     MemoryPage * ret;
 
-    if(head->freePageOffset == 0) {
-        if((ret = get_page(table_id, head->numOfPages)) == NULL) return NULL;
-        ++(head->numOfPages);
+    if(head->free_page_offset == 0) {
+        if((ret = get_page(table_id, head->num_pages)) == NULL) return NULL;
+        ++(head->num_pages);
     } else {
-        if((ret = get_page(table_id, head->freePageOffset / PAGE_SIZE)) == NULL) return NULL;
-        head->freePageOffset = ((FreePage*)(ret->p_page))->nextOffset;
+        if((ret = get_page(table_id, head->free_page_offset / PAGE_SIZE)) == NULL) return NULL;
+        head->free_page_offset = ((FreePage*)(ret->p_page))->next_offset;
     }
 
     register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
@@ -413,15 +413,15 @@ int set_parent(int table_id, llu page_num, llu parent_num)
 {
     llu hash_idx = hash_llu(page_num, MEMPAGE_MOD);
     MemoryPage * m_page = find_hash_friend(page_buf[hash_idx], table_id, page_num);
-    llu parentOffset = PAGE_SIZE * parent_num;
+    llu parent_offset = PAGE_SIZE * parent_num;
 
     if(m_page) {
         InternalPage * page = (InternalPage*)(m_page->p_page);
-        page->header.parentOffset = parentOffset;
+        page->header.parent_offset = parent_offset;
 
         register_dirty_page(m_page, make_dirty(0, 8));
     } else {
-        pwrite(table_id, &parentOffset, 8, PAGE_SIZE * page_num);
+        pwrite(table_id, &parent_offset, 8, PAGE_SIZE * page_num);
     }
 
     return 1;
@@ -437,8 +437,8 @@ int free_page(int table_id, llu page_num)
     if(m_page == NULL) return false;
     FreePage * page = (FreePage*)(m_page->p_page);
 
-    page->nextOffset = head->freePageOffset;
-    head->freePageOffset = PAGE_SIZE * page_num;
+    page->next_offset = head->free_page_offset;
+    head->free_page_offset = PAGE_SIZE * page_num;
 
     register_dirty_page(m_page, make_dirty(0, 8));
     register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));

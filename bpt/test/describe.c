@@ -22,7 +22,7 @@
 
      if(argc > 2) {
         MemoryPage * mem = get_page(fd, atoi(argv[2]));
-        if(((InternalPage*)(mem->p_page))->header.isLeaf) {
+        if(((InternalPage*)(mem->p_page))->header.is_leaf) {
             describe_leaf(mem);
         } else {
             describe_internal(mem);

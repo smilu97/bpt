@@ -90,9 +90,9 @@ typedef struct Page {
  *  done using this header page.
  */
 typedef struct HeaderPage {
-    offsetType freePageOffset;
-    offsetType rootPageOffset;
-    llu numOfPages;
+    offsetType free_page_offset;
+    offsetType root_page_offset;
+    llu num_pages;
     BYTE reserved[PAGE_SIZE - sizeof(llu) - (sizeof(offsetType) * 2)];
 } HeaderPage;
 
@@ -103,7 +103,7 @@ typedef struct HeaderPage {
  *  managed by the free page list.
  */
 typedef struct FreePage {
-    offsetType nextOffset;  // 0, if end of the free page list.
+    offsetType next_offset;  // 0, if end of the free page list.
     BYTE reserved[PAGE_SIZE - sizeof(offsetType)];
 } FreePage;
 
@@ -113,19 +113,19 @@ typedef struct FreePage {
  *  as a page header.
  */
 typedef struct LeafPageHeader {
-    offsetType parentOffset;
-    lu isLeaf;
-    lu numOfKeys;
+    offsetType parent_offset;
+    lu is_leaf;
+    lu num_keys;
     BYTE reserved[PAGE_HEADER_SIZE - (sizeof(offsetType) * 2) - (sizeof(lu) * 2)];
-    offsetType rightOffset;
+    offsetType right_offset;
 } LeafPageHeader;
 
 typedef struct InternalPageHeader {
-    offsetType parentOffset;
-    lu isLeaf;
-    lu numOfKeys;
+    offsetType parent_offset;
+    lu is_leaf;
+    lu num_keys;
     BYTE reserved[PAGE_HEADER_SIZE - (sizeof(offsetType) * 2) - (sizeof(lu) * 2)];
-    offsetType oneMoreOffset;
+    offsetType one_more_offset;
 } InternalPageHeader;
 
 /*
