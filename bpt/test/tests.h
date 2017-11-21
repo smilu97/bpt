@@ -14,3 +14,4 @@ int test_delete();
 int test_delete_2();
 int test_delete_random();
 int test_table();
+int test_perf(int buf_num);

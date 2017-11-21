@@ -7,6 +7,10 @@
 
 int main(int argc, char ** argv)
 {
+    if(argc >= 3 && strcmp(argv[1], "perf") == 0) {
+        test_perf(atoi(argv[2]));
+        return 0;
+    }
     if(
         test_page() &&
         test_insert_sequence() &&

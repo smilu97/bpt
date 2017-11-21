@@ -101,17 +101,17 @@ int test_delete_random()
     init_db(100000);
     int fd = open_table("db/test_delete_random.db");
     char buf[100];
-    int indices[10000];
-    for(int i=0; i<10000; ++i) indices[i] = i;
-    shuffle_d(indices, 10000);
-    for(int i=0; i<10000; ++i) {
+    int indices[1000000];
+    for(int i=0; i<1000000; ++i) indices[i] = i;
+    shuffle_d(indices, 1000000);
+    for(int i=0; i<1000000; ++i) {
         sprintf(buf, "a%d", i);
         if(insert(fd, i, buf)) {
             myerror("Failed to insert in test_delete_random");
             return false;
         }
     }
-    for(int i=0; i<10000; ++i) {
+    for(int i=0; i<1000000; ++i) {
         if(delete(fd, indices[i])) {
             shutdown_db();
             myerror("Failed to delete in test_delete_random");

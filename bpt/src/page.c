@@ -483,10 +483,11 @@ void make_free_mempage(llu idx)
     }
 
     // Make clean page
-    for(Dirty * cur = mem->dirty; cur; cur = cur->next) {
-        int size = cur->right - cur->left;
-        commit_page(table_id, page, page_num, size, cur->left);
-    }
+    // for(Dirty * cur = mem->dirty; cur; cur = cur->next) {
+    //     int size = cur->right - cur->left;
+    //     commit_page(table_id, page, page_num, size, cur->left);
+    // }
+    commit_page(table_id, page, page_num, PAGE_SIZE, 0);
     for(Dirty * cur = mem->dirty; cur;) {
         Dirty * next = cur->next;
         free(cur);
