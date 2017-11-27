@@ -24,7 +24,7 @@ MemoryPage * get_root();
 int height(MemoryPage * root);
 void find_and_print_range(int table_id, llu left, llu right);
 MemoryPage * find_leaf(int table_id, llu key);
-MemoryPage * find_first_leaf();
+MemoryPage * find_first_leaf(int table_id);
 MemoryPage * find_left(MemoryPage * m_leaf);
 MemoryPage * find_right(MemoryPage * m_leaf);
 char * find_from_leaf(MemoryPage * m_leaf, llu key);
@@ -49,6 +49,8 @@ int coalesce_leaf(MemoryPage * m_left, MemoryPage * m_right);
 int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right);
 int coalesce_internal(MemoryPage * m_left, MemoryPage * m_right);
 int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right);
+
+int join_table(int table_id_1, int table_id_2, char * pathname);
 
 extern MemoryPage * page_buf[MEMPAGE_MOD];
 extern MemoryPage * mempages;

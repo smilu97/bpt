@@ -20,15 +20,22 @@ int main( int argc, char ** argv ) {
 
     init_db(buf_num);
     int fd = open_table(argv[1]);
+    int fd2;
 
     char instruction;
     char value_buf[1000];
+    char buf2[1000];
     llu input, range2;
     int verbose_output = 0;
 
     // printf("> ");
     while (scanf("%c", &instruction) != EOF) {
         switch (instruction) {
+        case 'j':
+            scanf("%s%s", value_buf, buf2);
+            fd2 = open_table(value_buf);
+            join_table(fd, fd2, buf2);
+            break;
         case 'd':
             scanf("%llu", &input);
             delete(fd, input);

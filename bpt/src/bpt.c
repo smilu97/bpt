@@ -1049,3 +1049,68 @@ int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right)
 
     return true;
 }
+
+int join_table(int table_id_1, int table_id_2, char * pathname)
+{
+    FILE * fd = fopen(pathname, "w");
+    if(fd == NULL) {
+        myerror("Failed to open file in join_table");
+        return -1;
+    }
+
+    MemoryPage * m_left_leaf = find_first_leaf(table_id_1);
+    MemoryPage * m_right_leaf = find_first_leaf(table_id_2);
+
+    LeafPage * left_leaf = (LeafPage*)(m_left_leaf->p_page);
+    LeafPage * right_leaf = (LeafPage*)(m_right_leaf->p_page);
+
+    int left_idx = 0;
+    int right_idx = 0;
+
+    int end = 0;
+
+    while(end == 0) {
+        lld left_key = left_leaf->keyValue[left_idx].key;
+
+        while(right_leaf->keyValue[right_idx].key < left_key) {
+            if(right_idx + 1 >= right_leaf->header.num_keys) {
+                if(right_leaf->header.right_offset == 0) {
+                    end = 1;
+                    break;
+                }
+                m_right_leaf = get_page(table_id_2, right_leaf->header.right_offset / PAGE_SIZE);
+                right_leaf = (LeafPage*)(m_right_leaf->p_page);
+                right_idx = -1;
+            }
+            ++right_idx;
+        }
+        if(end) break;
+
+        if(left_key == right_leaf->keyValue[right_idx].key) {
+            fprintf(
+                fd,
+                "%lld,%s,%lld,%s\n",
+                left_key,
+                left_leaf->keyValue[left_idx].value,
+                left_key,
+                right_leaf->keyValue[right_idx].value
+            );
+        }
+
+        if(left_idx + 1 >= left_leaf->header.num_keys) {
+            if(left_leaf->header.right_offset == 0) {
+                end = 1; 
+                break;
+            }
+            m_left_leaf = get_page(table_id_1, left_leaf->header.right_offset / PAGE_SIZE);
+            left_leaf = (LeafPage*)(m_left_leaf->p_page);
+            left_idx = -1;
+        }
+        ++left_idx;
+    }
+
+    fclose(fd);
+    free_pinned();
+
+    return 0;
+}

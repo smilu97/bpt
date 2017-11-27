@@ -61,7 +61,7 @@ at:
 	make main
 	make build_test
 	make describe
-	test/tests perf 1000
+	test/tests
 
 test_perf:
 	test/tests perf 16
