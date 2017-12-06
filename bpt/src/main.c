@@ -35,6 +35,7 @@ int main( int argc, char ** argv ) {
             scanf("%s%s", value_buf, buf2);
             fd2 = open_table(value_buf);
             join_table(fd, fd2, buf2);
+            close_table(fd2);
             break;
         case 'd':
             scanf("%llu", &input);

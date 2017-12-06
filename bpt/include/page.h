@@ -197,6 +197,7 @@ typedef struct MemoryPage {
     Dirty * dirty;
     int table_id;
     int pin_count;
+    int pinned_idx;
     llu cache_idx;
     llu page_num;
     LRUNode * p_lru;
@@ -224,6 +225,7 @@ int init_buf();
 void delete_cache();
 MemoryPage * pop_unpinned_lru();
 MemoryPage * get_page(int table_id, llu page_num);
+MemoryPage * get_bufpage();
 MemoryPage * new_page(int table_id);
 int free_page(int table_id, llu page_num);
 int commit_page(int table_id, Page * p_page, llu page_num, llu size, llu offset);
@@ -239,7 +241,8 @@ Dirty * make_dirty(int left, int right);
 int register_dirty_page(MemoryPage * m_page, Dirty * dirty);
 
 void register_pinned(MemoryPage * mem);
-void free_pinned();
+void unpin_all();
+void unpin(MemoryPage * mem);
 
 /*******************************************************************
  * Global variables

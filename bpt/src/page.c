@@ -48,10 +48,15 @@ int last_mempage_idx;
  */
 int MAX_MEMPAGE;
 
+/* The number of buffer page, only for buffering
+ */
+int bufpage_num;
+
 /* Represents pinned memory pages
  */
 MemoryPage * pinned_pages[PIN_CONTAINER_SIZE];
 int pinned_page_num;
+int pinned_pages_empty;
 
 /* Describe header page
  */
@@ -129,6 +134,8 @@ int init_db(int buf_num)
     last_mempage_idx = 0;
     pinned_page_num = 0;
     opened_tables_num = 0;
+    bufpage_num = 0;
+    pinned_pages_empty = -1;
     LRUInit();
 
     return 0;
@@ -370,15 +377,18 @@ MemoryPage * get_page(int table_id, llu page_num)
     }
 
     // Load from disk
-    if(page_num == 0) {
-        load_page(table_id, new_page->p_page, page_num, PAGE_SIZE);
-    } else {
-        MemoryPage * m_head = get_header_page(table_id);
-        HeaderPage * head = (HeaderPage*)m_head->p_page;
-        if(page_num < head->num_pages) {
+    if(table_id != -1) {  // table_id == -1 => means this is buffer page, so not demanding loading from disk
+        if(page_num == 0) {
             load_page(table_id, new_page->p_page, page_num, PAGE_SIZE);
+        } else {
+            MemoryPage * m_head = get_header_page(table_id);
+            HeaderPage * head = (HeaderPage*)m_head->p_page;
+            if(page_num < head->num_pages) {
+                load_page(table_id, new_page->p_page, page_num, PAGE_SIZE);
+            }
         }
     }
+    
 
     // Put into linked list
     new_page->next = page_buf[hash_idx];
@@ -387,6 +397,14 @@ MemoryPage * get_page(int table_id, llu page_num)
     register_pinned(new_page);
 
     return new_page;
+}
+
+/*
+ * Get memory page for only buffering
+ */
+MemoryPage * get_bufpage()
+{
+    return get_page(-1, bufpage_num++);
 }
 
 MemoryPage * new_page(int table_id)
@@ -482,16 +500,18 @@ void make_free_mempage(llu idx)
         del_mp_cur =     del_mp_cur->next ;
     }
 
-    // Make clean page
-    // for(Dirty * cur = mem->dirty; cur; cur = cur->next) {
-    //     int size = cur->right - cur->left;
-    //     commit_page(table_id, page, page_num, size, cur->left);
-    // }
-    commit_page(table_id, page, page_num, PAGE_SIZE, 0);
-    for(Dirty * cur = mem->dirty; cur;) {
-        Dirty * next = cur->next;
-        free(cur);
-        cur = next;
+    if(table_id != -1) {  // table_id == -1, means this is buffer page
+        // Make clean page
+        // for(Dirty * cur = mem->dirty; cur; cur = cur->next) {
+        //     int size = cur->right - cur->left;
+        //     commit_page(table_id, page, page_num, size, cur->left);
+        // }
+        if(mem->dirty) commit_page(table_id, page, page_num, PAGE_SIZE, 0);
+        for(Dirty * cur = mem->dirty; cur;) {
+            Dirty * next = cur->next;
+            free(cur);
+            cur = next;
+        }
     }
 
     // Register in free page chain
@@ -577,18 +597,40 @@ void register_pinned(MemoryPage * mem)
         puts("over 900 pinned");
     }
     if(mem->pin_count == 0) {
-        if(pinned_page_num >= PIN_CONTAINER_SIZE) {
-            myerror("TOO LOW PIN_CONTAINER_SIZE");
+        int pin_idx;
+        if(pinned_pages_empty == -1) {
+            if(pinned_page_num >= PIN_CONTAINER_SIZE) {
+                myerror("TOO LOW PIN_CONTAINER_SIZE");
+            }
+            pin_idx = pinned_page_num++;
+        } else {
+            pin_idx = pinned_pages_empty;
+            pinned_pages_empty = (int)pinned_pages[pinned_pages_empty];
         }
-        pinned_pages[pinned_page_num++] = mem;
+
+        mem->pinned_idx = pin_idx;
+        pinned_pages[pin_idx] = mem;
     }
     ++(mem->pin_count);
 }
 
-void free_pinned()
+void unpin_all()
 {
+    while(pinned_pages_empty != -1) {
+        int next = (int)pinned_pages[pinned_pages_empty];
+        pinned_pages[pinned_pages_empty] = NULL;
+        pinned_pages_empty = next;
+    }
     for(int idx = 0; idx < pinned_page_num; ++idx) {
-        pinned_pages[idx]->pin_count = 0;
+        if(pinned_pages[idx] != NULL)
+            pinned_pages[idx]->pin_count = 0;
     }
     pinned_page_num = 0;
+}
+
+void unpin(MemoryPage * mem)
+{
+    pinned_pages[mem->pinned_idx] = (MemoryPage*)(llu)pinned_pages_empty;
+    pinned_pages_empty = mem->pinned_idx;
+    mem->pin_count = 0;
 }

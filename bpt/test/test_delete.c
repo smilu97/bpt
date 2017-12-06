@@ -6,6 +6,7 @@
 #include "tests.h"
 
 #define ITEM_LIMIT 1000000
+#define BUF_NUM    1000000
 
 const char * test_value_format = "I'm record %d";
 
@@ -13,7 +14,7 @@ int test_delete()
 {
     unlink("db/test_delete.db");
 
-    init_db(100000);
+    init_db(BUF_NUM);
     int fd = open_table("db/test_delete.db");
 
     char buf[100];
@@ -66,7 +67,7 @@ int test_delete_2()
 {
     unlink("db/test_delete_2.db");
 
-    init_db(100000);
+    init_db(BUF_NUM);
     int fd = open_table("db/test_delete_2.db");
 
     char buf[100];
@@ -101,17 +102,17 @@ int test_delete_random()
     init_db(100000);
     int fd = open_table("db/test_delete_random.db");
     char buf[100];
-    int indices[1000000];
-    for(int i=0; i<1000000; ++i) indices[i] = i;
-    shuffle_d(indices, 1000000);
-    for(int i=0; i<1000000; ++i) {
+    int indices[ITEM_LIMIT];
+    for(int i=0; i<ITEM_LIMIT; ++i) indices[i] = i;
+    shuffle_d(indices, ITEM_LIMIT);
+    for(int i=0; i<ITEM_LIMIT; ++i) {
         sprintf(buf, "a%d", i);
         if(insert(fd, i, buf)) {
             myerror("Failed to insert in test_delete_random");
             return false;
         }
     }
-    for(int i=0; i<1000000; ++i) {
+    for(int i=0; i<ITEM_LIMIT; ++i) {
         if(delete(fd, indices[i])) {
             shutdown_db();
             myerror("Failed to delete in test_delete_random");

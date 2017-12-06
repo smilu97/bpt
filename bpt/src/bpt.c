@@ -41,7 +41,7 @@ void print_tree(int table_id)
             }
         }
         putchar('|');
-        free_pinned();
+        unpin_all();
 
         if(cur->header.is_leaf) continue;
 
@@ -254,7 +254,7 @@ char * find(int table_id, llu key)
     if(idx == -1) ret = NULL;
     else ret = leaf->keyValue[idx].value;
 
-    free_pinned();  // Un-pin all memory pages
+    unpin_all();  // Un-pin all memory pages
 
     return ret;
 }
@@ -306,7 +306,7 @@ int insert(int table_id, llu key, const char * value)
     } else {
         ret = insert_into_leaf_after_splitting(m_leaf, key, value);
     }
-    free_pinned();
+    unpin_all();
 
     return ret - 1;
 }
@@ -606,7 +606,7 @@ int delete(int table_id, llu key)
     MemoryPage * m_leaf = find_leaf(table_id, key);
     int ret = delete_leaf_entry(m_leaf, key);
 
-    free_pinned();
+    unpin_all();
 
     return ret - 1;
 }
@@ -1050,21 +1050,34 @@ int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right)
     return true;
 }
 
+/*
+ * This algorithm is O(A+B)
+ * Linearly, Sequencely Visit all records of two tables
+ * from first to end, to find same key between two tables
+ */
 int join_table(int table_id_1, int table_id_2, char * pathname)
 {
-    FILE * fd = fopen(pathname, "w");
-    if(fd == NULL) {
+    char cbuf[300];
+    int buf_len;
+    int page_buf_len = 0;
+    int file_len = 0;
+
+    int fd = open(pathname, O_RDWR | O_CREAT, 0644);
+    if(fd == 0) {
         myerror("Failed to open file in join_table");
         return -1;
     }
 
-    MemoryPage * m_left_leaf = find_first_leaf(table_id_1);
+    MemoryPage * m_buf = get_bufpage();
+    Page * buf = (Page*)(m_buf->p_page);
+
+    MemoryPage * m_left_leaf  = find_first_leaf(table_id_1);
     MemoryPage * m_right_leaf = find_first_leaf(table_id_2);
 
-    LeafPage * left_leaf = (LeafPage*)(m_left_leaf->p_page);
+    LeafPage * left_leaf  = (LeafPage*)(m_left_leaf ->p_page);
     LeafPage * right_leaf = (LeafPage*)(m_right_leaf->p_page);
 
-    int left_idx = 0;
+    int left_idx  = 0;
     int right_idx = 0;
 
     int end = 0;
@@ -1072,12 +1085,15 @@ int join_table(int table_id_1, int table_id_2, char * pathname)
     while(end == 0) {
         lld left_key = left_leaf->keyValue[left_idx].key;
 
+        // Move next until finding same key in the right leaf
         while(right_leaf->keyValue[right_idx].key < left_key) {
+            // If end of leaf, move next to the sibling
             if(right_idx + 1 >= right_leaf->header.num_keys) {
                 if(right_leaf->header.right_offset == 0) {
                     end = 1;
                     break;
                 }
+                unpin(m_right_leaf);
                 m_right_leaf = get_page(table_id_2, right_leaf->header.right_offset / PAGE_SIZE);
                 right_leaf = (LeafPage*)(m_right_leaf->p_page);
                 right_idx = -1;
@@ -1086,22 +1102,35 @@ int join_table(int table_id_1, int table_id_2, char * pathname)
         }
         if(end) break;
 
+        // Found same key in the right leaf
         if(left_key == right_leaf->keyValue[right_idx].key) {
-            fprintf(
-                fd,
+            sprintf(
+                cbuf,
                 "%lld,%s,%lld,%s\n",
                 left_key,
                 left_leaf->keyValue[left_idx].value,
                 left_key,
                 right_leaf->keyValue[right_idx].value
             );
+            buf_len = strlen(cbuf);
+
+            if(page_buf_len + buf_len >= 0x1000) {
+                pwrite(fd, buf->bytes, page_buf_len, file_len);
+                file_len += page_buf_len;
+                page_buf_len = 0;
+            }
+
+            strcpy(buf->bytes + page_buf_len, cbuf);
+            page_buf_len += buf_len;
         }
 
+        // If end of leaf, move next to the sibling
         if(left_idx + 1 >= left_leaf->header.num_keys) {
             if(left_leaf->header.right_offset == 0) {
                 end = 1; 
                 break;
             }
+            unpin(m_left_leaf);
             m_left_leaf = get_page(table_id_1, left_leaf->header.right_offset / PAGE_SIZE);
             left_leaf = (LeafPage*)(m_left_leaf->p_page);
             left_idx = -1;
@@ -1109,8 +1138,9 @@ int join_table(int table_id_1, int table_id_2, char * pathname)
         ++left_idx;
     }
 
-    fclose(fd);
-    free_pinned();
+    unpin_all();
+
+    close(fd);
 
     return 0;
 }
