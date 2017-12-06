@@ -203,6 +203,7 @@ MemoryPage * find_first_leaf(int table_id)
 
     // Until cursor is pointing leaf page, go into first page
     while(false == cur->header.is_leaf) {
+        unpin(m_cur);
         m_cur = get_page(table_id, cur->header.one_more_offset / PAGE_SIZE);
         cur = (InternalPage*)(m_cur->p_page);
     }
@@ -1137,6 +1138,9 @@ int join_table(int table_id_1, int table_id_2, char * pathname)
         }
         ++left_idx;
     }
+    pwrite(fd, buf->bytes, page_buf_len, file_len);
+    file_len += page_buf_len;
+    page_buf_len = 0;
 
     unpin_all();
 
