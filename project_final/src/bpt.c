@@ -293,8 +293,8 @@ int destroy_tree(int table_id)
     root->header.parent_offset = 0;
     root->header.right_offset = 0;
     
-    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE), NULL);
-    register_dirty_page(m_root, make_dirty(0, PAGE_HEADER_SIZE), NULL);
+    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
+    register_dirty_page(m_root, make_dirty(0, PAGE_HEADER_SIZE));
 
     unpin(m_head);
     unpin(m_root);
@@ -359,7 +359,7 @@ int insert_into_leaf(MemoryPage * m_leaf, llu key, const char * value)
     memcpy(leaf->keyValue[idx].value, value, value_len + 1);
 
     // commit modification
-    register_dirty_page(m_leaf, make_dirty(0, PAGE_SIZE), NULL);
+    register_dirty_page(m_leaf, make_dirty(0, PAGE_SIZE));
 
     return true;
 }
@@ -395,15 +395,15 @@ int insert_into_new_root(MemoryPage * m_left, llu new_key, MemoryPage * m_right)
     left->header.parent_offset  = head->root_page_offset;
     right->header.parent_offset = head->root_page_offset;
 
+    // Commit modifications
+    register_dirty_page(m_new_root, make_dirty(0, PAGE_HEADER_SIZE + 20));
+    register_dirty_page(m_left,     make_dirty(0, PAGE_HEADER_SIZE));
+    register_dirty_page(m_right,    make_dirty(0, PAGE_HEADER_SIZE));
+    register_dirty_page(m_head,     make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
+
     // unpin
     unpin(m_head);
     unpin(m_new_root);
-
-    // Commit modifications
-    register_dirty_page(m_new_root, make_dirty(0, PAGE_HEADER_SIZE + 20), NULL);
-    register_dirty_page(m_left,     make_dirty(0, PAGE_HEADER_SIZE), NULL);
-    register_dirty_page(m_right,    make_dirty(0, PAGE_HEADER_SIZE), NULL);
-    register_dirty_page(m_head,     make_dirty(0, HEADER_PAGE_COMMIT_SIZE), NULL);
     
     return true;
 }
@@ -442,10 +442,10 @@ int insert_into_leaf_after_splitting(MemoryPage * m_leaf, llu key, const char * 
         memcpy(new_leaf->keyValue[idx - split].value, leaf->keyValue[idx].value, value_len + 1);
     }
 
-    unpin(m_new_leaf);
+    register_dirty_page(m_leaf,     make_dirty(0, PAGE_HEADER_SIZE));
+    register_dirty_page(m_new_leaf, make_dirty(0, PAGE_HEADER_SIZE + (len - split) * sizeof(Record)));
 
-    register_dirty_page(m_leaf,     make_dirty(0, PAGE_HEADER_SIZE), NULL);
-    register_dirty_page(m_new_leaf, make_dirty(0, PAGE_HEADER_SIZE + (len - split) * sizeof(Record)), NULL);
+    unpin(m_new_leaf);
 
     return insert_into_parent(m_leaf, new_leaf->keyValue[0].key, m_new_leaf);
 }
@@ -517,8 +517,8 @@ int insert_into_internal(MemoryPage * m_internal, llu left_idx, llu new_key, Mem
     InternalPage * right = (InternalPage*)(m_right->p_page);
     right->header.parent_offset = PAGE_SIZE * m_internal->page_num;
 
-    register_dirty_page(m_internal, make_dirty(0, PAGE_SIZE), NULL);
-    register_dirty_page(m_right,    make_dirty(0, PAGE_HEADER_SIZE), NULL);
+    register_dirty_page(m_internal, make_dirty(0, PAGE_SIZE));
+    register_dirty_page(m_right,    make_dirty(0, PAGE_HEADER_SIZE));
 
     return true;
 }
@@ -554,10 +554,10 @@ int insert_into_internal_after_splitting(MemoryPage * m_internal, llu left_idx, 
         set_parent(table_id, internal->keyValue[idx].offset / PAGE_SIZE, m_new_internal->page_num);
     }
 
-    unpin(m_new_internal);
+    register_dirty_page(m_internal,     make_dirty(0, PAGE_HEADER_SIZE));
+    register_dirty_page(m_new_internal, make_dirty(0, PAGE_HEADER_SIZE + (len - split - 1) * sizeof(InternalKeyValue)));
 
-    register_dirty_page(m_internal,     make_dirty(0, PAGE_HEADER_SIZE), NULL);
-    register_dirty_page(m_new_internal, make_dirty(0, PAGE_HEADER_SIZE + (len - split - 1) * sizeof(InternalKeyValue)), NULL);
+    unpin(m_new_internal);
 
     return insert_into_parent(m_internal, internal->keyValue[split].key, m_new_internal);
 }
@@ -625,12 +625,12 @@ llu change_key_in_parent(MemoryPage * m_page, llu key)
     llu ret = parent->keyValue[pointer_idx - 1].key;
     parent->keyValue[pointer_idx - 1].key = key;
 
-    unpin(m_parent);
-
     register_dirty_page(m_parent, make_dirty(
         PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * (pointer_idx - 1),
         PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * pointer_idx
-    ), NULL);
+    ));
+
+    unpin(m_parent);
 
     return ret;
 }
@@ -706,8 +706,7 @@ int delete_leaf_entry(MemoryPage * m_leaf, llu key)
         make_dirty(
             0,
             PAGE_HEADER_SIZE + leaf->header.num_keys * sizeof(Record)
-        ),
-        NULL
+        )
     );
 
     /* Check the number of records in this leaf page
@@ -797,7 +796,7 @@ int delete_internal_entry(MemoryPage * m_internal, llu key)
     --(internal->header.num_keys);
 
     // Calculate the area to commit
-    register_dirty_page(m_internal, make_dirty(0, PAGE_SIZE), NULL);
+    register_dirty_page(m_internal, make_dirty(0, PAGE_SIZE));
 
     if(internal->header.parent_offset != 0 && internal->header.num_keys < INTERNAL_MERGE_TOLERANCE) {
         MemoryPage * m_friend;
@@ -840,11 +839,11 @@ int delete_internal_entry(MemoryPage * m_internal, llu key)
         InternalPage * new_root = (InternalPage*)(m_new_root->p_page);
 
         new_root->header.parent_offset = 0;
+        
+        register_dirty_page(m_new_root, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
 
         unpin(m_head);
-        
-        register_dirty_page(m_new_root, make_dirty(0, PAGE_HEADER_COMMIT_SIZE), NULL);
-        register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE), NULL);
     }
 
     return true;
@@ -869,7 +868,7 @@ int coalesce_leaf(MemoryPage * m_left, MemoryPage * m_right)
     left->header.num_keys    += right_len;
     left->header.right_offset = right->header.right_offset;
 
-    register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_SIZE + sizeof(Record) * left->header.num_keys), NULL);
+    register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_SIZE + sizeof(Record) * left->header.num_keys));
     free_page(table_id, m_right->page_num);
 
     // Delete the pair pointing right
@@ -926,8 +925,8 @@ int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right)
         right->header.num_keys += len_borrow;
 
         // Calculate dirty area and register it
-        register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_COMMIT_SIZE), NULL);
-        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_SIZE + sizeof(Record) * right->header.num_keys), NULL);
+        register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_SIZE + sizeof(Record) * right->header.num_keys));
 
         change_key_in_parent(m_right, right->keyValue[0].key);
     } else if(len_left < len_right) {
@@ -958,8 +957,8 @@ int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right)
         right->header.num_keys -= len_borrow;
 
         // Calculate dirty area and register it
-        register_dirty_page(m_left,  make_dirty(0, PAGE_HEADER_SIZE + sizeof(Record) * left ->header.num_keys), NULL);
-        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_SIZE + sizeof(Record) * right->header.num_keys), NULL);
+        register_dirty_page(m_left,  make_dirty(0, PAGE_HEADER_SIZE + sizeof(Record) * left ->header.num_keys));
+        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_SIZE + sizeof(Record) * right->header.num_keys));
 
         change_key_in_parent(m_right, right->keyValue[0].key);
     }
@@ -995,7 +994,7 @@ int coalesce_internal(MemoryPage * m_left, MemoryPage * m_right)
         set_parent(table_id, left->keyValue[idx].offset / PAGE_SIZE, m_left->page_num);
     }
 
-    register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * (left_len + right_len + 1)), NULL);
+    register_dirty_page(m_left, make_dirty(0, PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * (left_len + right_len + 1)));
     free_page(table_id, m_right->page_num);
 
     // Delete the pair pointing right
@@ -1056,8 +1055,8 @@ int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right)
         right->header.num_keys += len_borrow;
 
         // Calculate dirty area and register it
-        register_dirty_page(m_left,  make_dirty(0, PAGE_HEADER_COMMIT_SIZE), NULL);
-        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * right->header.num_keys), NULL);
+        register_dirty_page(m_left,  make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * right->header.num_keys));
     } else if(len_left < len_right) {
 
         diff = len_right - len_left;
@@ -1092,8 +1091,8 @@ int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right)
         right->header.num_keys -= len_borrow;
 
         // Calculate dirty area and register it
-        register_dirty_page(m_left , make_dirty(0, PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * left ->header.num_keys), NULL);
-        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * right->header.num_keys), NULL);
+        register_dirty_page(m_left , make_dirty(0, PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * left ->header.num_keys));
+        register_dirty_page(m_right, make_dirty(0, PAGE_HEADER_SIZE + sizeof(InternalKeyValue) * right->header.num_keys));
     }
 
     return true;
@@ -1118,6 +1117,9 @@ int update(int table_id, llu key, char * value)
     }
 
     strcpy(leaf->keyValue[idx].value, value);
+    int commit_left = PAGE_HEADER_SIZE + sizeof(Record) * idx;
+    int commit_right = commit_left + sizeof(Record);
+    register_dirty_page(m_leaf, make_dirty(commit_left, commit_right));
 
     unpin(m_leaf);
 

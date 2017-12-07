@@ -22,7 +22,7 @@ int test_insert_sequence()
     unlink("db/test_insert_seq.db");
     
     init_db(TEST_BUF);
-    int fd = open_table("db/test_insert_seq.db");
+    int table_id = open_table("db/test_insert_seq.db");
 
     char buf[200];
     
@@ -30,7 +30,7 @@ int test_insert_sequence()
     clock_gettime(CLOCK_MONOTONIC, &begin);
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", i);
-        insert(fd, i, buf);
+        insert(table_id, i, buf);
     }
     clock_gettime(CLOCK_MONOTONIC, &end);
     double total = (end.tv_sec - begin.tv_sec) + (end.tv_nsec - begin.tv_nsec) / 1000000000.0f;
@@ -39,7 +39,7 @@ int test_insert_sequence()
     int success = 1;
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", i);
-        char * record = find(fd, i);
+        char * record = find(table_id, i);
         if(record == NULL || strcmp(record, buf) != 0) {
             printf("record: %s\nbuf: %s\n", record, buf);
             success = 0;
@@ -52,7 +52,7 @@ int test_insert_sequence()
         myerror("sequence validation fail");
     }
 
-    close_table(fd);
+    close_table(table_id);
     shutdown_db();
     return true;
 }
@@ -63,7 +63,7 @@ int test_insert_random()
     unlink("db/test_insert_random.db");
 
     init_db(TEST_BUF);
-    int fd = open_table("db/test_insert_random.db");
+    int table_id = open_table("db/test_insert_random.db");
 
     char buf[200];
     int indices[INSERT_NUM];
@@ -76,7 +76,7 @@ int test_insert_random()
     clock_gettime(CLOCK_MONOTONIC, &begin);
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", indices[i]);
-        insert(fd, indices[i], buf);
+        insert(table_id, indices[i], buf);
     }
     clock_gettime(CLOCK_MONOTONIC, &end);
     double total = (end.tv_sec - begin.tv_sec) + (end.tv_nsec - begin.tv_nsec) / 1000000000.0f;
@@ -86,7 +86,7 @@ int test_insert_random()
     int success = 1;
     for(int i=0; i<INSERT_NUM; ++i) {
         sprintf(buf, "I'm a record %d", indices[i]);
-        char * record = find(fd, indices[i]);
+        char * record = find(table_id, indices[i]);
         
         if(record == NULL || strcmp(record, buf) != 0) {
             printf("record: %s\nbuf: %s\n", record, buf);
@@ -100,7 +100,7 @@ int test_insert_random()
         myerror("random validation failed");
     }
     
-    close_table(fd);
+    close_table(table_id);
     shutdown_db();
     return true;
 }

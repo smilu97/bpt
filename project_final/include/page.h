@@ -202,6 +202,7 @@ typedef struct MemoryPage {
     llu page_num;
     LRUNode * p_lru;
     Page * p_page;
+    Page * p_orig;
     struct MemoryPage * next;
 } MemoryPage;
 
@@ -228,7 +229,7 @@ MemoryPage * get_bufpage();
 MemoryPage * new_page(int table_id);
 int free_page(int table_id, llu page_num);
 int commit_page(int table_id, Page * p_page, llu page_num, llu size, llu offset);
-int load_page(int table_id, Page * p_page, llu page_num, llu size);
+int load_page(MemoryPage * m_page, int table_id, int page_num);
 int close_file();
 int set_parent(int table_id, llu page_num, llu parent_num);
 MemoryPage * find_hash_friend(MemoryPage * mem, int table_id, llu page_num);
@@ -237,7 +238,7 @@ void make_free_mempage(llu idx);
 MemoryPage * new_mempage(llu page_num, int table_id);
 
 Dirty * make_dirty(int left, int right);
-int register_dirty_page(MemoryPage * m_page, Dirty * dirty, char * old_data);
+int register_dirty_page(MemoryPage * m_page, Dirty * dirty);
 
 void enpin(MemoryPage * mem);
 void unpin(MemoryPage * mem);

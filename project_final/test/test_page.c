@@ -20,21 +20,23 @@ int test_page()
     char buf[200];
 
     for(int i=1; i<PAGE_NUM; ++i) {
-        Page * page = get_page(fd, i)->p_page;
+        MemoryPage * m_page = get_page(fd, i);
+        Page * page = m_page->p_page;
         sprintf(page->bytes, "Hello I'm record %d", i);
         commit_page(fd, page, i, 200, 0);
-        unpin_all();
+        unpin(m_page);
     }
 
     for(int i=1; i<PAGE_NUM; ++i) {
-        Page * page = get_page(fd, i)->p_page;
+        MemoryPage * m_page = get_page(fd, i);
+        Page * page = m_page->p_page;
         sprintf(buf, "Hello I'm record %d", i);
         if(strcmp(buf, page->bytes) != 0) {
             printf("buf  : %s\n", buf);
             printf("page : %s\n", page->bytes);
             return false;
         }
-        unpin_all();
+        unpin(m_page);
     }
 
     printf("InternalPageHeader  size: %lu\n", sizeof(InternalPageHeader));
