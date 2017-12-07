@@ -52,12 +52,6 @@ int MAX_MEMPAGE;
  */
 int bufpage_num;
 
-/* Represents pinned memory pages
- */
-MemoryPage * pinned_pages[PIN_CONTAINER_SIZE];
-int pinned_page_num;
-int pinned_pages_empty;
-
 /* Describe header page
  */
 void describe_header(HeaderPage * head)
@@ -132,10 +126,8 @@ int init_db(int buf_num)
     }
     free_mempage = 0;
     last_mempage_idx = 0;
-    pinned_page_num = 0;
     opened_tables_num = 0;
     bufpage_num = 0;
-    pinned_pages_empty = -1;
     init_trx();
     LRUInit();
 
@@ -605,45 +597,10 @@ int register_dirty_page(MemoryPage * m_page, Dirty * dirty, char * old_data)
 
 void enpin(MemoryPage * mem)
 {
-    // if(pinned_page_num >= 900) {
-    //     puts("over 900 pinned");
-    // }
-    // if(mem->pin_count == 0) {
-    //     int pin_idx;
-    //     if(pinned_pages_empty == -1) {
-    //         if(pinned_page_num >= PIN_CONTAINER_SIZE) {
-    //             myerror("TOO LOW PIN_CONTAINER_SIZE");
-    //         }
-    //         pin_idx = pinned_page_num++;
-    //     } else {
-    //         pin_idx = pinned_pages_empty;
-    //         pinned_pages_empty = (int)pinned_pages[pinned_pages_empty];
-    //     }
-
-    //     mem->pinned_idx = pin_idx;
-    //     pinned_pages[pin_idx] = mem;
-    // }
     ++(mem->pin_count);
-}
-
-void unpin_all()
-{
-    while(pinned_pages_empty != -1) {
-        int next = (int)pinned_pages[pinned_pages_empty];
-        pinned_pages[pinned_pages_empty] = NULL;
-        pinned_pages_empty = next;
-    }
-    for(int idx = 0; idx < pinned_page_num; ++idx) {
-        if(pinned_pages[idx] != NULL)
-            pinned_pages[idx]->pin_count = 0;
-    }
-    pinned_page_num = 0;
 }
 
 void unpin(MemoryPage * mem)
 {
     --(mem->pin_count);
-    // pinned_pages[mem->pinned_idx] = (MemoryPage*)(llu)pinned_pages_empty;
-    // pinned_pages_empty = mem->pinned_idx;
-    // mem->pin_count = 0;
 }

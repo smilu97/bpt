@@ -74,11 +74,6 @@ typedef char BYTE;
  */
 #define PAGE_HEADER_COMMIT_SIZE 24
 
-/* Representing size of container that save
- * the pinned memory pages
- */
-#define PIN_CONTAINER_SIZE 100000
-
 typedef struct Page {
     BYTE bytes[PAGE_SIZE];
 } Page;
@@ -245,7 +240,6 @@ Dirty * make_dirty(int left, int right);
 int register_dirty_page(MemoryPage * m_page, Dirty * dirty, char * old_data);
 
 void enpin(MemoryPage * mem);
-void unpin_all();
 void unpin(MemoryPage * mem);
 
 /*******************************************************************

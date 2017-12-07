@@ -41,7 +41,6 @@ void print_tree(int table_id)
             }
         }
         putchar('|');
-        unpin_all();
 
         if(cur->header.is_leaf) continue;
 
@@ -1114,7 +1113,7 @@ int update(int table_id, llu key, char * value)
      * If couldn't find record having the key
      */
     if(idx == -1) {
-        unpin_all();
+        unpin(m_leaf);
         return -1;
     }
 
