@@ -50,6 +50,8 @@ int redistribute_leaf(MemoryPage * m_left, MemoryPage * m_right);
 int coalesce_internal(MemoryPage * m_left, MemoryPage * m_right);
 int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right);
 
+int update(int table_id, llu key, char * value);
+
 int join_table(int table_id_1, int table_id_2, char * pathname);
 
 extern MemoryPage * page_buf[MEMPAGE_MOD];

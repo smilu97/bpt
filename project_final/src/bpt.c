@@ -1051,6 +1051,31 @@ int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right)
     return true;
 }
 
+/* 
+ * Find record having the key, and update the value
+ */
+int update(int table_id, llu key, char * value)
+{
+    MemoryPage * m_leaf = find_leaf(table_id, key);
+    LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
+
+    int idx = find_idx_from_leaf(m_leaf, key);
+
+    /* 
+     * If couldn't find record having the key
+     */
+    if(idx == -1) {
+        unpin_all();
+        return -1;
+    }
+
+    strcpy(leaf->keyValue[idx].value, value);
+
+    unpin_all();
+
+    return 0;
+}
+
 /*
  * This algorithm is O(A+B)
  * Linearly, Sequencely Visit all records of two tables

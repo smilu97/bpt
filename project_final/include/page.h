@@ -93,7 +93,8 @@ typedef struct HeaderPage {
     offsetType free_page_offset;
     offsetType root_page_offset;
     llu num_pages;
-    BYTE reserved[PAGE_SIZE - sizeof(llu) - (sizeof(offsetType) * 2)];
+    llu page_lsn;
+    BYTE reserved[PAGE_SIZE - (sizeof(llu) * 2) - (sizeof(offsetType) * 2)];
 } HeaderPage;
 
 /*
@@ -116,7 +117,9 @@ typedef struct LeafPageHeader {
     offsetType parent_offset;
     lu is_leaf;
     lu num_keys;
-    BYTE reserved[PAGE_HEADER_SIZE - (sizeof(offsetType) * 2) - (sizeof(lu) * 2)];
+    llu dummy1;
+    llu page_lsn;
+    BYTE reserved[PAGE_HEADER_SIZE - (sizeof(offsetType) * 2) - (sizeof(lu) * 2) - (sizeof(llu) * 2)];
     offsetType right_offset;
 } LeafPageHeader;
 
@@ -124,7 +127,9 @@ typedef struct InternalPageHeader {
     offsetType parent_offset;
     lu is_leaf;
     lu num_keys;
-    BYTE reserved[PAGE_HEADER_SIZE - (sizeof(offsetType) * 2) - (sizeof(lu) * 2)];
+    llu dummy1;
+    llu page_lsn;
+    BYTE reserved[PAGE_HEADER_SIZE - (sizeof(offsetType) * 2) - (sizeof(lu) * 2) - (sizeof(llu) * 2)];
     offsetType one_more_offset;
 } InternalPageHeader;
 
