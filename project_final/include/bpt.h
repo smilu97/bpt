@@ -7,6 +7,8 @@
 #define __DBPT_H__
 
 #include "page.h"
+#include "transaction.h"
+
 #include <string.h>
 #include <time.h>
 #include <stdlib.h>

@@ -136,6 +136,7 @@ int init_db(int buf_num)
     opened_tables_num = 0;
     bufpage_num = 0;
     pinned_pages_empty = -1;
+    init_trx();
     LRUInit();
 
     return 0;
@@ -502,11 +503,11 @@ void make_free_mempage(llu idx)
 
     if(table_id != -1) {  // table_id == -1, means this is buffer page
         // Make clean page
-        // for(Dirty * cur = mem->dirty; cur; cur = cur->next) {
-        //     int size = cur->right - cur->left;
-        //     commit_page(table_id, page, page_num, size, cur->left);
-        // }
-        if(mem->dirty) commit_page(table_id, page, page_num, PAGE_SIZE, 0);
+        for(Dirty * cur = mem->dirty; cur; cur = cur->next) {
+            int size = cur->right - cur->left;
+            commit_page(table_id, page, page_num, size, cur->left);
+        }
+        // if(mem->dirty) commit_page(table_id, page, page_num, PAGE_SIZE, 0);
         for(Dirty * cur = mem->dirty; cur;) {
             Dirty * next = cur->next;
             free(cur);

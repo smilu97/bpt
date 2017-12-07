@@ -260,4 +260,13 @@ extern LRUNode * lru_head;
 extern LRUNode * lru_tail;
 extern llu lru_cnt;
 
+/* Import global variables from "transaction.h"
+ */
+extern int log_fd;
+
+/*
+ * Include "transaction.h" in last because of cross-dependency problem
+ */
+#include "transaction.h"
+
 #endif

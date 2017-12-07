@@ -19,7 +19,8 @@ TARGET_SRC:=$(SRCDIR)main.c
 TARGET_OBJ:=$(SRCDIR)main.o
 
 # Include more files if you write another source file.
-SRCS_FOR_LIB:=$(SRCDIR)page.c $(SRCDIR)bpt.c $(SRCDIR)hash.c $(SRCDIR)lru.c $(SRCDIR)algo.c
+SRCS_FOR_LIB:=$(SRCDIR)page.c $(SRCDIR)bpt.c $(SRCDIR)hash.c $(SRCDIR)lru.c $(SRCDIR)algo.c \
+	$(SRCDIR)transaction.c
 OBJS_FOR_LIB:=$(SRCS_FOR_LIB:.c=.o)
 
 SRCS_FOR_TEST:=$(TESTDIR)test_page.c $(TESTDIR)test_insert.c $(TESTDIR)tests.c $(TESTDIR)test_delete.c $(TESTDIR)test_table.c \
