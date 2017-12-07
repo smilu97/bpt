@@ -84,7 +84,23 @@ int abort_transaction();
 
 /*
  * Log updating page
+ * There is no limit of size(right - left)
+ * If size is over 30, It automatically split dirty areas,
+ * and call below function(update_transaction_small) many times
  */
 int update_transaction(MemoryPage * m_page, char * old_data, int left, int right);
+
+/*
+ * Log updating page
+ * There is limit of size(right - left) to 30byte
+ */
+int update_transaction_small(MemoryPage * m_page, char * old_data, int left, int right);
+
+/*
+ * Make string to represent one LogUnit
+ * The area that returned pointer is pointing must be freed by user
+ */
+char * logunit_tostring(LogUnit * unit);
+
 
 #endif

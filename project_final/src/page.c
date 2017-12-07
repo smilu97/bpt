@@ -189,8 +189,8 @@ int open_table(const char * filepath)
         root->header.parent_offset = 0;
         root->header.right_offset = 0;
 
-        register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
-        register_dirty_page(m_root, make_dirty(0, PAGE_HEADER_SIZE));
+        register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE), NULL);
+        register_dirty_page(m_root, make_dirty(0, PAGE_HEADER_SIZE), NULL);
 
         opened_tables[opened_tables_num++] = fd;
 
@@ -293,6 +293,13 @@ int commit_page(int table_id, Page * p_page, llu page_num, llu size, llu offset)
     return pwrite(table_id, p_page, size, (page_num * PAGE_SIZE) + offset) == size;
 }
 
+char * copy_page(MemoryPage * m_page)
+{
+    char * ret = (char*)malloc(sizeof(char) * PAGE_SIZE);
+    memcpy(ret, m_page->p_page, PAGE_SIZE);
+    return ret;
+}
+
 int load_page(int table_id, Page * p_page, llu page_num, llu size)
 {
     
@@ -339,7 +346,7 @@ MemoryPage * get_page(int table_id, llu page_num)
     MemoryPage * mp_cur = find_hash_friend(page_buf[hash_idx], table_id, page_num);
     if(mp_cur) {
         LRUAdvance(mp_cur->p_lru);
-        register_pinned(mp_cur);
+        enpin(mp_cur);
         return mp_cur;
     }
 
@@ -394,8 +401,7 @@ MemoryPage * get_page(int table_id, llu page_num)
     // Put into linked list
     new_page->next = page_buf[hash_idx];
     page_buf[hash_idx] = new_page;
-
-    register_pinned(new_page);
+    enpin(new_page);
 
     return new_page;
 }
@@ -423,7 +429,7 @@ MemoryPage * new_page(int table_id)
         head->free_page_offset = ((FreePage*)(ret->p_page))->next_offset;
     }
 
-    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
+    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE), NULL);
 
     return ret;
 }
@@ -438,7 +444,7 @@ int set_parent(int table_id, llu page_num, llu parent_num)
         InternalPage * page = (InternalPage*)(m_page->p_page);
         page->header.parent_offset = parent_offset;
 
-        register_dirty_page(m_page, make_dirty(0, 8));
+        register_dirty_page(m_page, make_dirty(0, 8), NULL);
     } else {
         pwrite(table_id, &parent_offset, 8, PAGE_SIZE * page_num);
     }
@@ -459,8 +465,8 @@ int free_page(int table_id, llu page_num)
     page->next_offset = head->free_page_offset;
     head->free_page_offset = PAGE_SIZE * page_num;
 
-    register_dirty_page(m_page, make_dirty(0, 8));
-    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
+    register_dirty_page(m_page, make_dirty(0, 8), NULL);
+    register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE), NULL);
 
     // TODO: Check it's ok to free mempage
     // make_free_mempage(m_page->cache_idx);
@@ -567,7 +573,7 @@ Dirty * make_dirty(int left, int right)
     return ret;
 }
 
-int register_dirty_page(MemoryPage * m_page, Dirty * dirty)
+int register_dirty_page(MemoryPage * m_page, Dirty * dirty, char * old_data)
 {
     /* Find dirty node to merge
      * If not found, create new node
@@ -589,29 +595,34 @@ int register_dirty_page(MemoryPage * m_page, Dirty * dirty)
     dirty->next = m_page->dirty;
     m_page->dirty = dirty;
 
+    // Insert into logfile
+    if(old_data != NULL) {
+        update_transaction(m_page, old_data, dirty->left, dirty->right);
+    }
+
     return true;
 }
 
-void register_pinned(MemoryPage * mem)
+void enpin(MemoryPage * mem)
 {
-    if(pinned_page_num >= 900) {
-        puts("over 900 pinned");
-    }
-    if(mem->pin_count == 0) {
-        int pin_idx;
-        if(pinned_pages_empty == -1) {
-            if(pinned_page_num >= PIN_CONTAINER_SIZE) {
-                myerror("TOO LOW PIN_CONTAINER_SIZE");
-            }
-            pin_idx = pinned_page_num++;
-        } else {
-            pin_idx = pinned_pages_empty;
-            pinned_pages_empty = (int)pinned_pages[pinned_pages_empty];
-        }
+    // if(pinned_page_num >= 900) {
+    //     puts("over 900 pinned");
+    // }
+    // if(mem->pin_count == 0) {
+    //     int pin_idx;
+    //     if(pinned_pages_empty == -1) {
+    //         if(pinned_page_num >= PIN_CONTAINER_SIZE) {
+    //             myerror("TOO LOW PIN_CONTAINER_SIZE");
+    //         }
+    //         pin_idx = pinned_page_num++;
+    //     } else {
+    //         pin_idx = pinned_pages_empty;
+    //         pinned_pages_empty = (int)pinned_pages[pinned_pages_empty];
+    //     }
 
-        mem->pinned_idx = pin_idx;
-        pinned_pages[pin_idx] = mem;
-    }
+    //     mem->pinned_idx = pin_idx;
+    //     pinned_pages[pin_idx] = mem;
+    // }
     ++(mem->pin_count);
 }
 
@@ -631,7 +642,8 @@ void unpin_all()
 
 void unpin(MemoryPage * mem)
 {
-    pinned_pages[mem->pinned_idx] = (MemoryPage*)(llu)pinned_pages_empty;
-    pinned_pages_empty = mem->pinned_idx;
-    mem->pin_count = 0;
+    --(mem->pin_count);
+    // pinned_pages[mem->pinned_idx] = (MemoryPage*)(llu)pinned_pages_empty;
+    // pinned_pages_empty = mem->pinned_idx;
+    // mem->pin_count = 0;
 }

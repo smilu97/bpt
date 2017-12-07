@@ -39,7 +39,7 @@ $(TARGET): $(TARGET_OBJ)
 
 clean:
 	# rm $(TARGET) $(TARGET_OBJ) $(OBJS_FOR_LIB) $(LIBS)*
-	-rm -f $(TARGET_OBJ) $(OBJS_FOR_LIB) $(LIBS)* db/*.db desc main printall
+	-rm -f $(TARGET_OBJ) $(OBJS_FOR_LIB) $(LIBS)* db/*.db desc readlog main printall
 
 library:
 	gcc -shared -Wl,-soname,libbpt.so -o $(LIBS)libbpt.so $(OBJS_FOR_LIB)
@@ -54,6 +54,9 @@ build_test: test/test_page.c
 describe: $(TESTDIR)describe.c
 	$(CC) $(CFLAGS) -o desc $(TESTDIR)describe.c -L $(LIBS) -lbpt
 
+readlog: $(TESTDIR)readlog.c
+	$(CC) $(CFLAGS) -o readlog $(TESTDIR)readlog.c -L $(LIBS) -lbpt
+
 printall: $(TESTDIR)printall.c
 	$(CC) $(CFLAGS) -o printall $(TESTDIR)printall.c -L $(LIBS) -lbpt
 
@@ -63,6 +66,10 @@ at:
 	make build_test
 	make describe
 	test/tests
+
+re:
+	make clean
+	make
 
 test_perf:
 	test/tests perf 16

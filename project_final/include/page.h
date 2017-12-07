@@ -226,8 +226,7 @@ int close_table(int table_id);
 int shutdown_db(void);
 
 MemoryPage * get_header_page(int table_id);
-int init_buf();
-void delete_cache();
+char * copy_page(MemoryPage * m_page);
 MemoryPage * pop_unpinned_lru();
 MemoryPage * get_page(int table_id, llu page_num);
 MemoryPage * get_bufpage();
@@ -243,9 +242,9 @@ void make_free_mempage(llu idx);
 MemoryPage * new_mempage(llu page_num, int table_id);
 
 Dirty * make_dirty(int left, int right);
-int register_dirty_page(MemoryPage * m_page, Dirty * dirty);
+int register_dirty_page(MemoryPage * m_page, Dirty * dirty, char * old_data);
 
-void register_pinned(MemoryPage * mem);
+void enpin(MemoryPage * mem);
 void unpin_all();
 void unpin(MemoryPage * mem);
 

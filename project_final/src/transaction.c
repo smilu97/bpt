@@ -34,6 +34,8 @@ int last_trx_id;
  */
 int init_trx()
 {
+    open_logfile(NULL);
+
     log_fd = 0;
     now_trx_id = 0;
     last_trx_id = 0;
@@ -101,7 +103,10 @@ int begin_transaction()
 int commit_transaction()
 {
     // Assert log file is opened
-    if(log_fd == 0) return -1;
+    if(log_fd == 0) {
+        myerror("Log file isn't opened: commit_transaction");
+        return -1;
+    }
 
     // Initialize log
     LogUnit log;
@@ -133,13 +138,37 @@ int abort_transaction()
 
 }
 
+
 /*
  * Log updating page
+ * There is no limit of size(right - left)
+ * If size is over 30, It automatically split dirty areas,
+ * and call below function(update_transaction_small) many times
  */
 int update_transaction(MemoryPage * m_page, char * old_data, int left, int right)
 {
+    int size = right - left;
+    int ret = 0;
+    for(int s_left = 0; s_left < size; s_left += LOG_IMAGE_SIZE) {
+        int s_right = min_int(s_left + LOG_IMAGE_SIZE, right);
+        ret = update_transaction_small(m_page, old_data + s_left, s_left, s_right);
+        if(ret) return ret;
+    }
+
+    return 0;
+}
+
+/*
+ * Log updating page
+ * There is limit of size(right - left) to 30byte
+ */
+int update_transaction_small(MemoryPage * m_page, char * old_data, int left, int right)
+{
     // Assert log file is opened
-    if(log_fd == 0) return -1;
+    if(log_fd == 0) {
+        myerror("Log file isn't opened: update_transaction_small");
+        return -1;
+    }
 
     LeafPage * l_page = (LeafPage*)(m_page->p_page);
 
@@ -162,4 +191,33 @@ int update_transaction(MemoryPage * m_page, char * old_data, int left, int right
     write(log_fd, &log, sizeof(LogUnit));
 
     return 0;
+}
+
+/*
+ * Make string to represent one LogUnit
+ * The area that returned pointer is pointing must be freed by user
+ */
+char * logunit_tostring(LogUnit * unit)
+{
+    const char * LT_NAMES[] = {
+        "BEGIN",
+        "UPDATE",
+        "COMMIT",
+        "ABORT"
+    };
+    
+    char * ret = (char*)malloc(sizeof(char)*1024);
+    sprintf(
+        ret,
+        "(%llu -> %llu), trx: %d, %s, tbl: %d, pg: %d, off: %d, len: %d\n",
+        unit->prev_lsn,
+        unit->lsn,
+        unit->trx_id,
+        LT_NAMES[unit->type],
+        unit->table_id,
+        unit->page_num,
+        unit->offset,
+        unit->data_length
+    );
+    return ret;
 }
