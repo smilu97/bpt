@@ -66,8 +66,9 @@ int bufpage_num;
 void describe_header(HeaderPage * head)
 {
     printf("freePage:   %llu\n", head->free_page_offset / PAGE_SIZE);
-    printf("num_pages: %llu\n", head->num_pages);
+    printf("num_pages:  %llu\n", head->num_pages);
     printf("rootPage:   %llu\n", head->root_page_offset / PAGE_SIZE);
+    printf("page_lsn:   %llu\n", head->page_lsn);
 }
 
 /*
@@ -79,6 +80,7 @@ void describe_leaf(MemoryPage * m_leaf)
 
     puts("LeafPage");
     printf("num_keys: %u\n", leaf->header.num_keys);
+    printf("page_lsn: %llu\n", leaf->header.page_lsn);
     printf("parent: %llu\n", leaf->header.parent_offset / PAGE_SIZE);
     printf("right: %llu\n", leaf->header.right_offset / PAGE_SIZE);
     printf("keys: ");
@@ -96,6 +98,7 @@ void describe_internal(MemoryPage * m_internal)
 
     puts("InternalPage");
     printf("num_keys: %u\n", internal->header.num_keys);
+    printf("page_lsn: %llu\n", internal->header.page_lsn);
     printf("parent: %llu\n", internal->header.parent_offset / PAGE_SIZE);
     printf("contents: (%llu) ", internal->header.one_more_offset / PAGE_SIZE);
     for(int i=0; i<internal->header.num_keys; ++i) {
@@ -182,6 +185,8 @@ int open_table(const char * filepath)
         opened_tables[opened_tables_num++] = fd;
         int table_id = opened_tables_num - 1;
 
+        begin_transaction();
+
         // Make new header page
         MemoryPage * m_head = get_page(table_id, 0);
         HeaderPage * head = (HeaderPage*)(m_head->p_page);
@@ -201,6 +206,11 @@ int open_table(const char * filepath)
 
         register_dirty_page(m_head, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
         register_dirty_page(m_root, make_dirty(0, PAGE_HEADER_SIZE));
+
+        unpin(m_head);
+        unpin(m_root);
+
+        commit_transaction();
 
         return table_id;
     }
@@ -349,7 +359,6 @@ MemoryPage * pop_unpinned_lru()
 MemoryPage * get_page(int table_id, llu page_num)
 {
     llu hash_idx = hash_llu(page_num, MEMPAGE_MOD);
-
     MemoryPage * mp_cur = find_hash_friend(page_buf[hash_idx], table_id, page_num);
     if(mp_cur) {
         LRUAdvance(mp_cur->p_lru);
@@ -401,6 +410,7 @@ MemoryPage * get_page(int table_id, llu page_num)
             if(page_num < head->num_pages) {
                 load_page(new_page, table_id, page_num);
             }
+            unpin(m_head);
         }
     }
     
@@ -443,20 +453,19 @@ MemoryPage * new_page(int table_id)
 
 int set_parent(int table_id, llu page_num, llu parent_num)
 {
-    llu hash_idx = hash_llu(page_num, MEMPAGE_MOD);
-    MemoryPage * m_page = find_hash_friend(page_buf[hash_idx], table_id, page_num);
-    llu parent_offset = PAGE_SIZE * parent_num;
-
-    if(m_page) {
-        InternalPage * page = (InternalPage*)(m_page->p_page);
-        page->header.parent_offset = parent_offset;
-
-        register_dirty_page(m_page, make_dirty(0, 8));
-    } else {
-        pwrite(opened_tables[table_id], &parent_offset, 8, PAGE_SIZE * page_num);
-    }
+    MemoryPage * m_page = get_page(table_id, page_num);
+    InternalPage * page = (InternalPage*)(m_page->p_page);
+    page->header.parent_offset = parent_num * PAGE_SIZE;
+    register_dirty_page(m_page, make_dirty(0, 8));
+    unpin(m_page);
 
     return 1;
+}
+
+MemoryPage * get_page_if_have(int table_id, llu page_num)
+{
+    llu hash_idx = hash_llu(page_num, MEMPAGE_MOD);
+    return find_hash_friend(page_buf[hash_idx], table_id, page_num);
 }
 
 int free_page(int table_id, llu page_num)
@@ -617,4 +626,9 @@ void unpin(MemoryPage * mem)
         myerror("pin_count goes under 0");
     }
     --(mem->pin_count);
+    if(mem->pin_count == 0) {
+        if(mem->dirty != NULL) {
+            update_transaction(mem, 0, PAGE_SIZE);
+        }
+    }
 }

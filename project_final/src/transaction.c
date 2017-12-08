@@ -36,7 +36,6 @@ int init_trx()
 {
     open_logfile(NULL);
 
-    log_fd = 0;
     now_trx_id = 0;
     last_trx_id = 0;
 
@@ -77,20 +76,21 @@ int begin_transaction()
     }
 
     now_trx_id = (last_trx_id++) + 1;
+    
+    llu file_pos = lseek(log_fd, 0, SEEK_END);
 
     // Initialize log 
-    LogUnit log;
-    log.lsn = 0;
-    log.prev_lsn = 0;
+    LogRecord log;
+    log.lsn = file_pos + LOGSIZE_BEGIN;
+    log.prev_lsn = file_pos;
     log.trx_id = now_trx_id;
     log.type = LT_BEGIN;
-    log.table_id = 0;
-    log.page_num = 0;
-    log.offset = 0;
-    log.data_length = 0;
+    // log.table_id = 0;
+    // log.page_num = 0;
+    // log.offset = 0;
+    // log.data_length = 0;
 
-    lseek(log_fd, 0, SEEK_END);
-    write(log_fd, &log, sizeof(LogUnit));
+    write(log_fd, &log, LOGSIZE_BEGIN);
 
     return 0;
 }
@@ -108,21 +108,22 @@ int commit_transaction()
         return -1;
     }
 
+    llu file_pos = lseek(log_fd, 0, SEEK_END);
+
     // Initialize log
-    LogUnit log;
-    log.lsn = 0;
-    log.prev_lsn = 0;
+    LogRecord log;
+    log.lsn = file_pos + LOGSIZE_COMMIT;
+    log.prev_lsn = file_pos;
     log.trx_id = now_trx_id;
     log.type = LT_COMMIT;
-    log.table_id = 0;
-    log.page_num = 0;
-    log.offset = 0;
-    log.data_length = 0;
+    // log.table_id = 0;
+    // log.page_num = 0;
+    // log.offset = 0;
+    // log.data_length = 0;
 
     now_trx_id = 0;
 
-    lseek(log_fd, 0, SEEK_END);
-    write(log_fd, &log, sizeof(LogUnit));
+    write(log_fd, &log, LOGSIZE_COMMIT);
 
     return 0;
 }
@@ -138,31 +139,10 @@ int abort_transaction()
 
 }
 
-
 /*
  * Log updating page
- * There is no limit of size(right - left)
- * If size is over 30, It automatically split dirty areas,
- * and call below function(update_transaction_small) many times
  */
-int update_transaction(MemoryPage * m_page, char * old_data, int left, int right)
-{
-    int size = right - left;
-    int ret = 0;
-    for(int s_left = 0; s_left < size; s_left += LOG_IMAGE_SIZE) {
-        int s_right = min_int(s_left + LOG_IMAGE_SIZE, right);
-        ret = update_transaction_small(m_page, old_data + s_left, s_left, s_right);
-        if(ret) return ret;
-    }
-
-    return 0;
-}
-
-/*
- * Log updating page
- * There is limit of size(right - left) to 30byte
- */
-int update_transaction_small(MemoryPage * m_page, char * old_data, int left, int right)
+int update_transaction(MemoryPage * m_page, int left, int right)
 {
     // Assert log file is opened
     if(log_fd == 0) {
@@ -170,54 +150,73 @@ int update_transaction_small(MemoryPage * m_page, char * old_data, int left, int
         return -1;
     }
 
-    LeafPage * l_page = (LeafPage*)(m_page->p_page);
+    int image_size = right - left;
+    int record_size = LOGSIZE_UPDATE + 2 * image_size;
+    llu file_pos = lseek(log_fd, 0, SEEK_END);
 
     // Initialize log
-    LogUnit log;
-    log.lsn = l_page->header.page_lsn + 1;
-    log.prev_lsn = l_page->header.page_lsn;
+    LogRecord log;
+    log.lsn = file_pos + record_size;
+    log.prev_lsn = file_pos;
     log.trx_id = now_trx_id;
-    log.type = LT_COMMIT;
+    log.type = LT_UPDATE;
     log.table_id = m_page->table_id;
     log.page_num = m_page->page_num;
     log.offset = left;
-    log.data_length = right - left;
-    memcpy(log.old_image, old_data, log.data_length);
-    memcpy(log.new_image, (char*)(m_page->p_page) + left, log.data_length);
+    log.data_length = image_size;
 
-    ++(l_page->header.page_lsn);
+    if(m_page->page_num == 0) {
+        HeaderPage * page = (HeaderPage*)(m_page->p_page);
+        page->page_lsn = log.lsn;
+        register_dirty_page(m_page, make_dirty(0, HEADER_PAGE_COMMIT_SIZE));
+    } else {
+        InternalPage * page = (InternalPage*)(m_page->p_page);
+        page->header.page_lsn = log.lsn;
+        register_dirty_page(m_page, make_dirty(0, PAGE_HEADER_COMMIT_SIZE));
+    }
 
-    lseek(log_fd, 0, SEEK_END);
-    write(log_fd, &log, sizeof(LogUnit));
+    write(log_fd, &log, LOGSIZE_UPDATE);
+    write(log_fd, (char*)(m_page->p_orig) + left, image_size);
+    write(log_fd, (char*)(m_page->p_page) + left, image_size);
 
     return 0;
 }
 
 /*
- * Make string to represent one LogUnit
+ * Make string to represent one LogRecord
  * The area that returned pointer is pointing must be freed by user
  */
-char * logunit_tostring(LogUnit * unit)
+char * logrecord_tostring(LogRecord * unit)
 {
     const char * LT_NAMES[] = {
-        "BEGIN",
+        "BEGIN ",
         "UPDATE",
         "COMMIT",
-        "ABORT"
+        "ABORT "
     };
     
+    char buf[1024];
     char * ret = (char*)malloc(sizeof(char)*1024);
     sprintf(
         ret,
-        "(%llu -> %llu), trx: %d, %s, tbl: %d, pg: %d, off: %d, len: %d\n",
+        "(%5llu -> %5llu), trx: %d, %s",
         unit->prev_lsn,
         unit->lsn,
         unit->trx_id,
-        LT_NAMES[unit->type],
-        unit->table_id,
-        unit->page_num,
-        unit->offset,
-        unit->data_length
+        LT_NAMES[unit->type]
     );
+
+    if(unit->type == LT_UPDATE) {
+        sprintf(
+            buf,
+            ", tbl: %d, pg: %d, off: %d, len: %d",
+            unit->table_id,
+            unit->page_num,
+            unit->offset,
+            unit->data_length
+        );
+        strcat(ret, buf);
+    }
+
     return ret;
 }

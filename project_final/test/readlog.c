@@ -14,12 +14,18 @@ int main(int argc, char ** argv)
         return -1;
     }
 
-    LogUnit unit;
+    LogRecord unit;
     int sz;
-    while( (sz = read(fd, &unit, sizeof(LogUnit))) == sizeof(LogUnit) ) {
-        char * desc = logunit_tostring(&unit);
+    lseek(fd, 0, SEEK_SET);
+    while( (sz = read(fd, &unit, LOGSIZE_BEGIN)) == LOGSIZE_BEGIN ) {
+        if(unit.type == LT_UPDATE) {
+            read(fd, ((char*)&unit) + LOGSIZE_BEGIN, LOGSIZE_UPDATE - LOGSIZE_BEGIN);
+        }
+        char * desc = logrecord_tostring(&unit);
         printf("%s\n", desc);
         free(desc);
+
+        lseek(fd, unit.lsn, SEEK_SET);
     }
 
     close(fd);

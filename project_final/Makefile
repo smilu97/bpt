@@ -39,7 +39,7 @@ $(TARGET): $(TARGET_OBJ)
 
 clean:
 	# rm $(TARGET) $(TARGET_OBJ) $(OBJS_FOR_LIB) $(LIBS)*
-	-rm -f $(TARGET_OBJ) $(OBJS_FOR_LIB) $(LIBS)* db/*.db desc readlog main printall
+	-rm -f $(TARGET_OBJ) $(OBJS_FOR_LIB) $(LIBS)* db/*.db desc readlog main printall test.db log
 
 library:
 	gcc -shared -Wl,-soname,libbpt.so -o $(LIBS)libbpt.so $(OBJS_FOR_LIB)
@@ -70,6 +70,8 @@ at:
 re:
 	make clean
 	make
+	make readlog
+	make describe
 
 test_perf:
 	test/tests perf 16

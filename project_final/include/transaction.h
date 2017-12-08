@@ -18,12 +18,20 @@
 #define LOG_IMAGE_SIZE ((LOG_UNIT_SIZE - 40) / 2)
 
 /*
- * Enumeration of type in LogUnit
+ * Enumeration of type in LogRecord
  */
 #define LT_BEGIN  0
 #define LT_UPDATE 1
 #define LT_COMMIT 2
 #define LT_ABORT  3
+
+/*
+ * Length of each kind of log
+ */
+#define LOGSIZE_BEGIN  24
+#define LOGSIZE_UPDATE 40  // Length of update log is variable, and over this number(40)
+#define LOGSIZE_COMMIT 24
+#define LOGSIZE_ABORT  24
 
 /* 
  * Pathname of default logfile
@@ -34,7 +42,7 @@
  * Structs
  **********************************************************************/
 
-typedef struct LogUnit
+typedef struct LogRecord
 {
     llu lsn;
     llu prev_lsn;
@@ -44,9 +52,8 @@ typedef struct LogUnit
     int page_num;
     int offset;
     int data_length;
-    char old_image[LOG_IMAGE_SIZE];
-    char new_image[LOG_IMAGE_SIZE];
-} LogUnit;
+} LogRecord;
+
 
 /**********************************************************************
  * Functions
@@ -84,23 +91,14 @@ int abort_transaction();
 
 /*
  * Log updating page
- * There is no limit of size(right - left)
- * If size is over 30, It automatically split dirty areas,
- * and call below function(update_transaction_small) many times
  */
-int update_transaction(MemoryPage * m_page, char * old_data, int left, int right);
+int update_transaction(MemoryPage * m_page, int left, int right);
 
 /*
- * Log updating page
- * There is limit of size(right - left) to 30byte
- */
-int update_transaction_small(MemoryPage * m_page, char * old_data, int left, int right);
-
-/*
- * Make string to represent one LogUnit
+ * Make string to represent one LogRecord
  * The area that returned pointer is pointing must be freed by user
  */
-char * logunit_tostring(LogUnit * unit);
+char * logrecord_tostring(LogRecord * unit);
 
 
 #endif

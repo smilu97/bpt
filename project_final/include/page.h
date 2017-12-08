@@ -68,11 +68,11 @@ typedef char BYTE;
 /* The minimum size to commit header page
  * because the rest are reserved
  */
-#define HEADER_PAGE_COMMIT_SIZE 24
+#define HEADER_PAGE_COMMIT_SIZE 32
 
 /*
  */
-#define PAGE_HEADER_COMMIT_SIZE 24
+#define PAGE_HEADER_COMMIT_SIZE 32
 
 typedef struct Page {
     BYTE bytes[PAGE_SIZE];

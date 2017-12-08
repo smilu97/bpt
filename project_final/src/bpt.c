@@ -313,6 +313,11 @@ int destroy_tree(int table_id)
  */
 int insert(int table_id, llu key, const char * value)
 {
+    int single_trx = 0;
+    if(now_trx_id == 0) {
+        begin_transaction();
+        single_trx = 1;
+    }
     // Find leaf page to insert key
     MemoryPage * m_leaf = find_leaf(table_id, key);
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
@@ -326,6 +331,8 @@ int insert(int table_id, llu key, const char * value)
     }
 
     unpin(m_leaf);
+
+    if(single_trx) commit_transaction();
 
     return ret - 1;
 }
@@ -639,10 +646,20 @@ llu change_key_in_parent(MemoryPage * m_page, llu key)
  */
 int delete(int table_id, llu key)
 {
+    int single_trx = 0;
+    if(now_trx_id == 0) {
+        begin_transaction();
+        single_trx = 1;
+    }
+
     MemoryPage * m_leaf = find_leaf(table_id, key);
     int ret = delete_leaf_entry(m_leaf, key);
 
     // unpin_all();
+
+    if(single_trx) {
+        commit_transaction();
+    }
 
     return ret - 1;
 }
@@ -1103,6 +1120,12 @@ int redistribute_internal(MemoryPage * m_left, MemoryPage * m_right)
  */
 int update(int table_id, llu key, char * value)
 {
+    int single_trx = 0;
+    if(now_trx_id == 0) {
+        begin_transaction();
+        single_trx = 1;
+    }
+
     MemoryPage * m_leaf = find_leaf(table_id, key);
     LeafPage * leaf = (LeafPage*)(m_leaf->p_page);
 
@@ -1122,6 +1145,10 @@ int update(int table_id, llu key, char * value)
     register_dirty_page(m_leaf, make_dirty(commit_left, commit_right));
 
     unpin(m_leaf);
+
+    if(single_trx) {
+        commit_transaction();
+    }
 
     return 0;
 }

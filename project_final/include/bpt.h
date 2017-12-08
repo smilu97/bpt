@@ -63,4 +63,6 @@ extern int mempage_num;
 extern int last_mempage_idx;
 extern int MAX_MEMPAGE;
 
+extern int now_trx_id;
+
 #endif
