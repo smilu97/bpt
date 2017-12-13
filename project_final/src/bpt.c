@@ -1164,6 +1164,7 @@ int join_table(int table_id_1, int table_id_2, char * pathname)
     int buf_len;
     int page_buf_len = 0;
     int file_len = 0;
+    int sz;
 
     int fd = open(pathname, O_RDWR | O_CREAT, 0644);
     if(fd == 0) {
@@ -1218,7 +1219,7 @@ int join_table(int table_id_1, int table_id_2, char * pathname)
             buf_len = strlen(cbuf);
 
             if(page_buf_len + buf_len >= 0x1000) {
-                pwrite(fd, buf->bytes, page_buf_len, file_len);
+                sz = pwrite(fd, buf->bytes, page_buf_len, file_len);
                 file_len += page_buf_len;
                 page_buf_len = 0;
             }
@@ -1240,7 +1241,7 @@ int join_table(int table_id_1, int table_id_2, char * pathname)
         }
         ++left_idx;
     }
-    pwrite(fd, buf->bytes, page_buf_len, file_len);
+    sz = pwrite(fd, buf->bytes, page_buf_len, file_len);
     file_len += page_buf_len;
     page_buf_len = 0;
 

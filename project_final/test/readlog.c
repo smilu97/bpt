@@ -19,7 +19,7 @@ int main(int argc, char ** argv)
     lseek(fd, 0, SEEK_SET);
     while( (sz = read(fd, &unit, LOGSIZE_BEGIN)) == LOGSIZE_BEGIN ) {
         if(unit.type == LT_UPDATE) {
-            read(fd, ((char*)&unit) + LOGSIZE_BEGIN, LOGSIZE_UPDATE - LOGSIZE_BEGIN);
+            sz = read(fd, ((char*)&unit) + LOGSIZE_BEGIN, LOGSIZE_UPDATE - LOGSIZE_BEGIN);
         }
         char * desc = logrecord_tostring(&unit);
         printf("%s\n", desc);

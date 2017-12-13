@@ -107,7 +107,7 @@ int log_force()
     if(log_buffer_end == 0) return 0;
 
     lseek(log_fd, 0, SEEK_END);
-    write(log_fd, log_buffer, log_buffer_end);
+    int sz = write(log_fd, log_buffer, log_buffer_end);
     log_buffer_end = 0;
 
     return 0;
@@ -141,7 +141,7 @@ int log_append_many(void ** logs, int log_num)
     int size_sum = 0, ret = 0;
 
     for(int idx = 0; idx < log_num; ++idx) {
-        size_sum += (int)logs[idx * 2 + 1];
+        size_sum += (int)(llu)logs[idx * 2 + 1];
     }
     if(log_buffer_end + size_sum >= LOGBUF_SIZE) {
         if((ret = log_force())) {
@@ -151,7 +151,7 @@ int log_append_many(void ** logs, int log_num)
     }
 
     for(int idx = 0; idx < log_num; ++idx) {
-        log_append(logs[idx<<1], (int)logs[(idx<<1)+1]);
+        log_append(logs[idx<<1], (int)(llu)logs[(idx<<1)+1]);
     }
 
     return 0;
@@ -325,7 +325,7 @@ int redo_records(char * pathname)
         else if(rec.type == LT_UPDATE) {
 
             // Read more metadata
-            read(fd, (char*)(&rec) + LOGSIZE_BEGIN, LOGSIZE_UPDATE - LOGSIZE_BEGIN);
+            sz = read(fd, (char*)(&rec) + LOGSIZE_BEGIN, LOGSIZE_UPDATE - LOGSIZE_BEGIN);
 
             MemoryPage * m_page = get_page(rec.table_id, rec.page_num);
 
@@ -334,7 +334,7 @@ int redo_records(char * pathname)
 
             if(page_lsn < rec.lsn) {
                 lseek(fd, rec.data_length, SEEK_CUR);  // Skip old_image
-                read(fd, new_buf, rec.data_length);
+                sz = read(fd, new_buf, rec.data_length);
                 BYTE * page = m_page->p_page->bytes;
                 memcpy(page + rec.offset, new_buf, rec.data_length);
                 i_page->header.page_lsn = rec.lsn;

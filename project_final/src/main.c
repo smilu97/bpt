@@ -21,6 +21,7 @@ int main( int argc, char ** argv ) {
     init_db(buf_num);
     int fd = open_table(argv[1]);
     int fd2;
+    int sz;
 
     char instruction;
     char value_buf[1000];
@@ -32,25 +33,25 @@ int main( int argc, char ** argv ) {
     while (scanf("%c", &instruction) != EOF) {
         switch (instruction) {
         case 'j':
-            scanf("%s%s", value_buf, buf2);
+            sz = scanf("%s%s", value_buf, buf2);
             fd2 = open_table(value_buf);
             join_table(fd, fd2, buf2);
             close_table(fd2);
             break;
         case 'd':
-            scanf("%llu", &input);
+            sz = scanf("%llu", &input);
             delete(fd, input);
             if(verbose_output) print_tree(fd);
             break;
         case 'i':
-            scanf("%llu", &input);
-            scanf("%s", value_buf);
+            sz = scanf("%llu", &input);
+            sz = scanf("%s", value_buf);
             insert(fd, input, value_buf);
             if(verbose_output) print_tree(fd);
             break;
         case 'f':
         case 'p':
-            scanf("%llu", &input);
+            sz = scanf("%llu", &input);
             char * res = find(fd, input);
             if(res) {
                 printf("Key: %llu, Value: %s\n", input, res);
@@ -59,7 +60,7 @@ int main( int argc, char ** argv ) {
             }
             break;
         case 'r':
-            scanf("%llu %llu", &input, &range2);
+            sz = scanf("%llu %llu", &input, &range2);
             if (input > range2) {
                 int tmp = range2;
                 range2 = input;
@@ -71,8 +72,8 @@ int main( int argc, char ** argv ) {
             print_all(fd);
             break;
         case 'o':
-            scanf("%d", &buf_num);
-            scanf("%s", value_buf);
+            sz = scanf("%d", &buf_num);
+            sz = scanf("%s", value_buf);
             shutdown_db();
             init_db(buf_num);
             fd = open_table(value_buf);
