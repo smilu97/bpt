@@ -33,10 +33,16 @@
 #define LOGSIZE_COMMIT 24
 #define LOGSIZE_ABORT  24
 
+/*
+ * The size of log buffer
+ */
+#define LOGBUF_SIZE 0x10000
+
 /* 
  * Pathname of default logfile
  */
 #define DEF_LOGFILE "log"
+#define DEF_LOGFILE_BAK "log.bak"
 
 /**********************************************************************
  * Structs
@@ -71,6 +77,36 @@ int init_trx();
 int open_logfile(char * pathname);
 
 /*
+ * Close log file
+ */
+int close_logfile();
+
+/*
+ * Force log in buffer into disk
+ */
+int log_force();
+
+/*
+ * Append log data into buffer
+ */
+int log_append(void * log, int log_size);
+
+/*
+ * Append many log data into buffer
+ */
+int log_append_many(void ** logs, int log_num);
+
+/*
+ * Calculate last lsn
+ */
+llu get_last_lsn();
+
+/*
+ * Set page LSN
+ */
+int set_page_lsn(MemoryPage * mem, llu page_lsn);
+
+/*
  * Return 0 if success, otherwise return non-zero value.
  * Allocate transaction structure and initialize it.
  */
@@ -93,6 +129,12 @@ int abort_transaction();
  * Log updating page
  */
 int update_transaction(MemoryPage * m_page, int left, int right);
+
+/*
+ * Redo records
+ */
+int redo_records(char * pathname);
+
 
 /*
  * Make string to represent one LogRecord

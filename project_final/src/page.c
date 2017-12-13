@@ -145,8 +145,10 @@ int init_db(int buf_num)
     last_mempage_idx = 0;
     opened_tables_num = 1;
     bufpage_num = 0;
-    init_trx();
+    log_buffer_end = 0;
     LRUInit();
+
+    init_trx();
 
     return 0;
 }
@@ -627,8 +629,8 @@ void unpin(MemoryPage * mem)
     }
     --(mem->pin_count);
     if(mem->pin_count == 0) {
-        if(mem->dirty != NULL) {
-            update_transaction(mem, 0, PAGE_SIZE);
+        for(Dirty * dirty = mem->dirty; dirty != NULL; dirty = dirty->next) {
+            update_transaction(mem, dirty->left, dirty->right);
         }
     }
 }

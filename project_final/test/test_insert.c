@@ -11,7 +11,7 @@ int fail[1000];
 int fail_idx = 0;
 
 #define TEST_BUF   (400000)
-#define INSERT_NUM (1000000)
+#define INSERT_NUM (10000)
 
 extern unsigned long long pinned_page_num;
 

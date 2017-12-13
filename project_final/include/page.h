@@ -257,6 +257,7 @@ extern llu lru_cnt;
 /* Import global variables from "transaction.h"
  */
 extern int log_fd;
+extern int log_buffer_end;
 
 /*
  * Include "transaction.h" in last because of cross-dependency problem
